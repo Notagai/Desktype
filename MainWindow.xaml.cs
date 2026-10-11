@@ -147,8 +147,8 @@ internal static class NativeTyping
 
     public static bool TypeCharacter(char character)
     {
-        if (character == '\\r') return true;
-        if (character == '\\n')
+        if (character == '\r') return true;
+        if (character == '\n')
         {
             var enterInputs = new[]
             {
