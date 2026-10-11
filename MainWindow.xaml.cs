@@ -52,6 +52,9 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // TextChanged events can fire during InitializeComponent, before all
+        // named controls (including WpmInput) have been initialized.
+        _loadingSettings = true;
         InitializeComponent();
         LoadSettings();
     }
