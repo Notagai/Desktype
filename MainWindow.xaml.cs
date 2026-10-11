@@ -169,6 +169,11 @@ public partial class MainWindow : Window
         // Character timing varies inside short bursts, with brief pauses at burst
         // boundaries and after punctuation instead of a perfectly even metronome.
         var targetCharacterInterval = 12000.0 / wpm;
+        // Fixed-length pauses dominate at high WPM, so shrink pauses nonlinearly
+        // as the requested speed rises. This is calibrated against observed results:
+        // about 150 WPM at a setting of 180, and about 260 WPM at a setting of 839
+        // with the previous fixed pauses.
+        var pauseScale = Math.Min(1.0, Math.Pow(180.0 / wpm, 1.5));
         var burstLength = Random.Shared.Next(4, 10);
         var charactersInBurst = 0;
         _isTyping = true;
@@ -188,21 +193,23 @@ public partial class MainWindow : Window
 
                 charactersInBurst++;
                 var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
-                var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.82 * speedVariation));
+                var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.68 * speedVariation));
                 await Task.Delay(characterDelay, token);
 
                 if (character is '.' or ',' or '!' or '?' or ';' or ':')
                 {
-                    await Task.Delay(Random.Shared.Next(110, 291), token);
+                    await Task.Delay(Math.Max(1, (int)Math.Round(Random.Shared.Next(110, 291) * pauseScale)), token);
                 }
                 else if (character == ' ')
                 {
-                    await Task.Delay(Random.Shared.Next(0, 36), token);
+                    var spacePause = Random.Shared.Next(0, 36);
+                    if (spacePause > 0)
+                        await Task.Delay(Math.Max(1, (int)Math.Round(spacePause * pauseScale)), token);
                 }
 
                 if (charactersInBurst >= burstLength)
                 {
-                    await Task.Delay(Random.Shared.Next(90, 251), token);
+                    await Task.Delay(Math.Max(1, (int)Math.Round(Random.Shared.Next(90, 251) * pauseScale)), token);
                     charactersInBurst = 0;
                     burstLength = Random.Shared.Next(4, 10);
                 }
