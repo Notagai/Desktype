@@ -100,6 +100,7 @@ internal static class NativeTyping
     private const uint InputKeyboard = 1;
     private const uint KeyeventfUnicode = 0x0004;
     private const uint KeyeventfKeyup = 0x0002;
+    private const ushort VkReturn = 0x0D;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -146,14 +147,41 @@ internal static class NativeTyping
 
     public static bool TypeCharacter(char character)
     {
+        if (character == '\\r') return true;
+        if (character == '\\n')
+        {
+            var enterInputs = new[]
+            {
+                CreateVirtualKeyInput(VkReturn, 0),
+                CreateVirtualKeyInput(VkReturn, KeyeventfKeyup)
+            };
+            return SendInput((uint)enterInputs.Length, enterInputs, Marshal.SizeOf<INPUT>()) == (uint)enterInputs.Length;
+        }
+
         var inputs = new[]
         {
             CreateInput(character, KeyeventfUnicode),
             CreateInput(character, KeyeventfUnicode | KeyeventfKeyup)
         };
 
-        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
+        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
     }
+
+    private static INPUT CreateVirtualKeyInput(ushort key, uint flags) => new()
+    {
+        type = InputKeyboard,
+        U = new InputUnion
+        {
+            ki = new KEYBDINPUT
+            {
+                wVk = key,
+                wScan = 0,
+                dwFlags = flags,
+                time = 0,
+                dwExtraInfo = UIntPtr.Zero
+            }
+        }
+    };
 
     private static INPUT CreateInput(char character, uint flags) => new()
     {
