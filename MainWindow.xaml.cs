@@ -97,7 +97,7 @@ public partial class MainWindow : Window
         }
 
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (key < Key.F1 || key > Key.F24 || key == Key.F12)
+        if ((int)key < (int)Key.F1 || (int)key > (int)Key.F24 || key == Key.F12)
         {
             StatusText.Text = "Choose a function key.";
             StatusDetail.Text = "Use F1–F11 or F13–F24. F12 is reserved by Windows for debugging.";
