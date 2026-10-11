@@ -11,5 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="logo\Desktype Logo.png" />
+    <Resource Include="logo\Desktype.ico" />
   </ItemGroup>
 </Project>
