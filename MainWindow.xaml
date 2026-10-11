@@ -4,6 +4,8 @@
         Title="Desktype" Height="650" Width="760"
         MinHeight="560" MinWidth="620"
         WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        PreviewKeyDown="Window_PreviewKeyDown"
         Background="{StaticResource Canvas}"
         FontFamily="Segoe UI">
     <Window.Resources>
@@ -30,7 +32,7 @@
                            Foreground="{StaticResource Accent}"/>
                 <TextBlock Text="Type anywhere." FontSize="34" FontWeight="Bold"
                            Foreground="{StaticResource Ink}" Margin="0,7,0,5"/>
-                <TextBlock Text="Write here, click Start, then switch to any text field."
+                <TextBlock Text="Always on top · Use a global hotkey to type instantly."
                            FontSize="14" Foreground="{StaticResource Muted}"/>
             </StackPanel>
         </Grid>
@@ -58,7 +60,7 @@
             <StackPanel>
                 <TextBlock Text="HOW IT WORKS" FontSize="11" FontWeight="Bold"
                            Foreground="{StaticResource Accent}" Margin="0,0,0,7"/>
-                <TextBlock Text="1. Enter the text above.&#10;2. Press Start typing (you get 3 seconds to switch apps).&#10;3. Click a text field in another app. Desktype sends the text there."
+                <TextBlock Text="1. Enter or edit your text.&#10;2. Click Change hotkey and press a function key (F1–F11 or F13–F24).&#10;3. Click into a text field in another app, then press your hotkey. Typing starts immediately."
                            FontSize="13" LineHeight="23" Foreground="{StaticResource Ink}"/>
             </StackPanel>
         </Border>
@@ -71,7 +73,7 @@
             <StackPanel VerticalAlignment="Center">
                 <TextBlock x:Name="StatusText" Text="Ready when you are." FontSize="13"
                            FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
-                <TextBlock x:Name="StatusDetail" Text="Basic mode · no typing pattern yet"
+                <TextBlock x:Name="StatusDetail" Text="Default hotkey: F11"
                            FontSize="11" Foreground="{StaticResource Muted}" Margin="0,4,0,0"/>
             </StackPanel>
             <Button x:Name="StopButton" Grid.Column="1" Content="Stop" Width="100"
@@ -86,9 +88,9 @@
             </Grid.ColumnDefinitions>
             <TextBlock VerticalAlignment="Center" Text="Tip: test in Notepad first."
                        Foreground="{StaticResource Muted}" FontSize="12"/>
-            <Button x:Name="StartButton" Grid.Column="1" Content="Start typing  →"
+            <Button x:Name="HotkeyButton" Grid.Column="1" Content="Change hotkey · F11"
                     Background="{StaticResource Accent}" Foreground="White"
-                    Click="StartButton_Click" MinWidth="170"/>
+                    Click="HotkeyButton_Click" MinWidth="190"/>
         </Grid>
     </Grid>
 </Window>
