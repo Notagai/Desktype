@@ -1,8 +1,8 @@
 <Window x:Class="Desktype.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Desktype" Height="270" Width="460"
-        MinHeight="190" MinWidth="320"
+        Title="Desktype" Height="410" Width="500"
+        MinHeight="350" MinWidth="360"
         WindowStartupLocation="CenterScreen"
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown"
@@ -27,20 +27,47 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#221A33"/>
+            <Setter Property="Margin" Value="0,2,14,2"/>
+        </Style>
     </Window.Resources>
-    <Grid Margin="10">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBox x:Name="InputText" Grid.Row="0"
                  AcceptsReturn="True" AcceptsTab="True"
                  TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                 HorizontalScrollBarVisibility="Auto" MinHeight="60" FontSize="14"
+                 HorizontalScrollBarVisibility="Auto" MinHeight="70" FontSize="14"
                  TextChanged="InputText_TextChanged"
                  AutomationProperties.Name="Text to type"
                  ToolTip="Enter the text to type into the focused app."/>
-        <Grid Grid.Row="1" Margin="0,8,0,0">
+        <GroupBox Grid.Row="1" Header="Typos" Margin="0,10,0,0"
+                  Foreground="#6D6580" BorderBrush="#DDD6EC" Padding="8">
+            <StackPanel>
+                <RadioButton x:Name="NoTyposRadio" GroupName="TypoMode"
+                             Content="No typos" Checked="TypoMode_Changed"/>
+                <RadioButton x:Name="CorrectedTyposRadio" GroupName="TypoMode"
+                             Content="Typos, corrected" IsChecked="True"
+                             Checked="TypoMode_Changed"/>
+                <RadioButton x:Name="LeftTyposRadio" GroupName="TypoMode"
+                             Content="Typos, left" Checked="TypoMode_Changed"/>
+                <DockPanel Margin="0,7,0,0">
+                    <TextBlock Text="Typos per 100 words" VerticalAlignment="Center"
+                               Foreground="#6D6580" FontSize="12" Margin="0,0,10,0"/>
+                    <TextBox x:Name="TyposPer100Input" Text="3" Width="60"
+                             HorizontalContentAlignment="Center"
+                             VerticalContentAlignment="Center" Padding="5,3"
+                             MaxLength="3" TextChanged="TyposPer100Input_TextChanged"
+                             ToolTip="Expected typo count per 100 words (0–100)."/>
+                </DockPanel>
+            </StackPanel>
+        </GroupBox>
+        <Grid Grid.Row="2" Margin="0,9,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="64"/>
@@ -52,6 +79,7 @@
             <TextBox x:Name="WpmInput" Grid.Column="1" Text="60"
                      VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
                      Padding="4,3" FontSize="12" MaxLength="4"
+                     TextChanged="WpmInput_TextChanged"
                      ToolTip="Target typing pace (5 characters = 1 word)."/>
             <TextBlock x:Name="StatusText" Grid.Column="2" Text=""
                        VerticalAlignment="Center" Margin="8,0"
@@ -60,5 +88,8 @@
                     Content="Hotkey: F11" FontSize="12"
                     Click="HotkeyButton_Click"/>
         </Grid>
+        <TextBlock Grid.Row="3" Text="Settings save automatically"
+                   Margin="0,7,0,0" FontSize="10" Foreground="#6D6580"
+                   HorizontalAlignment="Right"/>
     </Grid>
 </Window>
