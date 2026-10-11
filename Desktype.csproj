@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Desktype</AssemblyName>
+    <ApplicationIcon>logo\Desktype.ico</ApplicationIcon>
     <RootNamespace>Desktype</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
