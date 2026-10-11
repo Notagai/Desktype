@@ -8,4 +8,7 @@
     <AssemblyName>Desktype</AssemblyName>
     <RootNamespace>Desktype</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="logo\Desktype Logo.png" />
+  </ItemGroup>
 </Project>
