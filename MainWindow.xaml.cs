@@ -96,9 +96,9 @@ public partial class MainWindow : Window
         }
 
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if ((int)key < (int)Key.F1 || (int)key > (int)Key.F24 || key == Key.F12)
+        if ((int)key < (int)Key.F1 || (int)key > (int)Key.F24)
         {
-            StatusText.Text = "Choose F1–F11 or F13–F24";
+            StatusText.Text = "Choose a function key (F1–F24)";
             return;
         }
 
@@ -132,7 +132,9 @@ public partial class MainWindow : Window
             _hotkeyRegistered = RegisterHotKey(_source.Handle, HotkeyId, NoModifiers, previousVirtualKey);
             _isCapturingHotkey = false;
             UpdateHotkeyButton();
-            StatusText.Text = "Key is already in use";
+            StatusText.Text = key == Key.F12
+                ? "Windows may reserve F12; try another key"
+                : "Key is already in use";
         }
     }
 
@@ -164,7 +166,11 @@ public partial class MainWindow : Window
         }
 
         // Standard typing-test convention: 1 word = 5 characters.
-        var delayMilliseconds = Math.Max(1, (int)Math.Round(12000.0 / wpm));
+        // Character timing varies inside short bursts, with brief pauses at burst
+        // boundaries and after punctuation instead of a perfectly even metronome.
+        var targetCharacterInterval = 12000.0 / wpm;
+        var burstLength = Random.Shared.Next(4, 10);
+        var charactersInBurst = 0;
         _isTyping = true;
         _typingCancellation = new CancellationTokenSource();
         var token = _typingCancellation.Token;
@@ -179,7 +185,27 @@ public partial class MainWindow : Window
                 token.ThrowIfCancellationRequested();
                 if (!NativeTyping.TypeCharacter(character))
                     throw new InvalidOperationException("Windows could not send keyboard input.");
-                await Task.Delay(delayMilliseconds, token);
+
+                charactersInBurst++;
+                var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
+                var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.82 * speedVariation));
+                await Task.Delay(characterDelay, token);
+
+                if (character is '.' or ',' or '!' or '?' or ';' or ':')
+                {
+                    await Task.Delay(Random.Shared.Next(110, 291), token);
+                }
+                else if (character == ' ')
+                {
+                    await Task.Delay(Random.Shared.Next(0, 36), token);
+                }
+
+                if (charactersInBurst >= burstLength)
+                {
+                    await Task.Delay(Random.Shared.Next(90, 251), token);
+                    charactersInBurst = 0;
+                    burstLength = Random.Shared.Next(4, 10);
+                }
             }
 
             StatusText.Text = "Done";
