@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,12 +16,33 @@ public partial class MainWindow : Window
     private const int WmHotkey = 0x0312;
     private const uint NoModifiers = 0;
     private const uint DefaultHotkey = 0x7A; // F11
+    private static readonly string SettingsDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Desktype");
+    private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
+
     private CancellationTokenSource? _typingCancellation;
     private HwndSource? _source;
     private uint _hotkeyVirtualKey = DefaultHotkey;
     private bool _hotkeyRegistered;
     private bool _isCapturingHotkey;
     private bool _isTyping;
+    private bool _loadingSettings;
+
+    private enum TypoMode
+    {
+        None,
+        Corrected,
+        Left
+    }
+
+    private sealed class AppSettings
+    {
+        public string Text { get; set; } = "";
+        public string Wpm { get; set; } = "60";
+        public string TyposPer100Words { get; set; } = "3";
+        public string TypoMode { get; set; } = nameof(Desktype.MainWindow.TypoMode.Corrected);
+        public uint HotkeyVirtualKey { get; set; } = DefaultHotkey;
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -29,7 +53,76 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        InputText.Text = "";
+        LoadSettings();
+    }
+
+    private void LoadSettings()
+    {
+        _loadingSettings = true;
+        try
+        {
+            AppSettings settings;
+            try
+            {
+                settings = File.Exists(SettingsPath)
+                    ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings()
+                    : new AppSettings();
+            }
+            catch
+            {
+                settings = new AppSettings();
+            }
+
+            InputText.Text = settings.Text ?? "";
+            WpmInput.Text = settings.Wpm ?? "60";
+            TyposPer100Input.Text = settings.TyposPer100Words ?? "3";
+            _hotkeyVirtualKey = IsFunctionKeyVirtualCode(settings.HotkeyVirtualKey)
+                ? settings.HotkeyVirtualKey
+                : DefaultHotkey;
+
+            switch (settings.TypoMode)
+            {
+                case nameof(TypoMode.None):
+                    NoTyposRadio.IsChecked = true;
+                    break;
+                case nameof(TypoMode.Left):
+                    LeftTyposRadio.IsChecked = true;
+                    break;
+                default:
+                    CorrectedTyposRadio.IsChecked = true;
+                    break;
+            }
+        }
+        finally
+        {
+            _loadingSettings = false;
+        }
+    }
+
+    private static bool IsFunctionKeyVirtualCode(uint key) => key >= 0x70 && key <= 0x87;
+
+    private void SaveSettings()
+    {
+        if (_loadingSettings) return;
+
+        var settings = new AppSettings
+        {
+            Text = InputText.Text,
+            Wpm = WpmInput.Text,
+            TyposPer100Words = TyposPer100Input.Text,
+            TypoMode = GetTypoMode().ToString(),
+            HotkeyVirtualKey = _hotkeyVirtualKey
+        };
+
+        try
+        {
+            Directory.CreateDirectory(SettingsDirectory);
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch
+        {
+            // Settings persistence must never interrupt typing or close the app.
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -126,6 +219,7 @@ public partial class MainWindow : Window
             _isCapturingHotkey = false;
             UpdateHotkeyButton();
             StatusText.Text = $"Ready · {HotkeyName(_hotkeyVirtualKey)} starts typing";
+            SaveSettings();
         }
         else
         {
@@ -141,9 +235,19 @@ public partial class MainWindow : Window
     private static string HotkeyName(uint virtualKey) =>
         KeyInterop.KeyFromVirtualKey((int)virtualKey).ToString();
 
-    private void InputText_TextChanged(object sender, TextChangedEventArgs e)
+    private void InputText_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
+
+    private void WpmInput_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
+
+    private void TyposPer100Input_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
+
+    private void TypoMode_Changed(object sender, RoutedEventArgs e) => SaveSettings();
+
+    private TypoMode GetTypoMode()
     {
-        // Keep the minimal interface; no extra status UI is needed here.
+        if (NoTyposRadio.IsChecked == true) return TypoMode.None;
+        if (LeftTyposRadio.IsChecked == true) return TypoMode.Left;
+        return TypoMode.Corrected;
     }
 
     private async Task TypeTextAsync()
@@ -165,14 +269,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Standard typing-test convention: 1 word = 5 characters.
-        // Character timing varies inside short bursts, with brief pauses at burst
-        // boundaries and after punctuation instead of a perfectly even metronome.
+        if (!int.TryParse(TyposPer100Input.Text, out var typosPer100) || typosPer100 < 0 || typosPer100 > 100)
+        {
+            StatusText.Text = "Typos per 100 words must be 0–100";
+            TyposPer100Input.Focus();
+            TyposPer100Input.SelectAll();
+            return;
+        }
+
+        SaveSettings();
+        var typoMode = GetTypoMode();
+        var typoPositions = ChooseTypoPositions(text, typosPer100, typoMode != TypoMode.None);
         var targetCharacterInterval = 12000.0 / wpm;
-        // Fixed-length pauses dominate at high WPM, so shrink pauses nonlinearly
-        // as the requested speed rises. This is calibrated against observed results:
-        // about 150 WPM at a setting of 180, and about 260 WPM at a setting of 839
-        // with the previous fixed pauses.
         var pauseScale = Math.Min(1.0, Math.Pow(180.0 / wpm, 1.5));
         var burstLength = Random.Shared.Next(4, 10);
         var charactersInBurst = 0;
@@ -181,13 +289,36 @@ public partial class MainWindow : Window
         var token = _typingCancellation.Token;
         HotkeyButton.IsEnabled = false;
         WpmInput.IsEnabled = false;
+        TyposPer100Input.IsEnabled = false;
+        NoTyposRadio.IsEnabled = false;
+        CorrectedTyposRadio.IsEnabled = false;
+        LeftTyposRadio.IsEnabled = false;
 
         try
         {
             StatusText.Text = $"Typing · {wpm} WPM";
-            foreach (var character in text)
+            for (var i = 0; i < text.Length; i++)
             {
                 token.ThrowIfCancellationRequested();
+                var character = text[i];
+                if (typoPositions.Contains(i))
+                {
+                    var wrongCharacter = GetTypoCharacter(character);
+                    if (typoMode == TypoMode.Corrected)
+                    {
+                        if (!NativeTyping.TypeCharacter(wrongCharacter))
+                            throw new InvalidOperationException("Windows could not send keyboard input.");
+                        await Task.Delay(Random.Shared.Next(75, 181), token);
+                        if (!NativeTyping.TypeBackspace())
+                            throw new InvalidOperationException("Windows could not send Backspace.");
+                        await Task.Delay(Random.Shared.Next(35, 91), token);
+                    }
+                    else if (typoMode == TypoMode.Left)
+                    {
+                        character = wrongCharacter;
+                    }
+                }
+
                 if (!NativeTyping.TypeCharacter(character))
                     throw new InvalidOperationException("Windows could not send keyboard input.");
 
@@ -197,9 +328,7 @@ public partial class MainWindow : Window
                 await Task.Delay(characterDelay, token);
 
                 if (character is '.' or ',' or '!' or '?' or ';' or ':')
-                {
                     await Task.Delay(Math.Max(1, (int)Math.Round(Random.Shared.Next(110, 291) * pauseScale)), token);
-                }
                 else if (character == ' ')
                 {
                     var spacePause = Random.Shared.Next(0, 36);
@@ -232,11 +361,57 @@ public partial class MainWindow : Window
             _isTyping = false;
             HotkeyButton.IsEnabled = true;
             WpmInput.IsEnabled = true;
+            TyposPer100Input.IsEnabled = true;
+            NoTyposRadio.IsEnabled = true;
+            CorrectedTyposRadio.IsEnabled = true;
+            LeftTyposRadio.IsEnabled = true;
         }
+    }
+
+    private static HashSet<int> ChooseTypoPositions(string text, int typosPer100, bool enabled)
+    {
+        var positions = new HashSet<int>();
+        if (!enabled || typosPer100 <= 0) return positions;
+
+        var wordCount = Regex.Matches(text, @"\b[\p{L}\p{N}']+\b").Count;
+        if (wordCount == 0) return positions;
+
+        var expectedCount = typosPer100 * wordCount / 100.0;
+        var typoCount = (int)Math.Floor(expectedCount);
+        if (Random.Shared.NextDouble() < expectedCount - typoCount) typoCount++;
+        var candidates = Enumerable.Range(0, text.Length).Where(i => char.IsLetter(text[i])).ToList();
+        typoCount = Math.Min(typoCount, candidates.Count);
+
+        for (var i = 0; i < typoCount; i++)
+        {
+            var pick = Random.Shared.Next(i, candidates.Count);
+            (candidates[i], candidates[pick]) = (candidates[pick], candidates[i]);
+            positions.Add(candidates[i]);
+        }
+
+        return positions;
+    }
+
+    private static char GetTypoCharacter(char original)
+    {
+        const string row1 = "qwertyuiop";
+        const string row2 = "asdfghjkl";
+        const string row3 = "zxcvbnm";
+        var lower = char.ToLowerInvariant(original);
+        var row = row1.Contains(lower) ? row1 : row2.Contains(lower) ? row2 : row3.Contains(lower) ? row3 : "";
+        if (row.Length == 0) return original;
+
+        var index = row.IndexOf(lower);
+        var neighbors = new List<char>(2);
+        if (index > 0) neighbors.Add(row[index - 1]);
+        if (index < row.Length - 1) neighbors.Add(row[index + 1]);
+        var typo = neighbors[Random.Shared.Next(neighbors.Count)];
+        return char.IsUpper(original) ? char.ToUpperInvariant(typo) : typo;
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        SaveSettings();
         _typingCancellation?.Cancel();
         if (_source is not null)
         {
@@ -254,6 +429,7 @@ internal static class NativeTyping
     private const uint KeyeventfUnicode = 0x0004;
     private const uint KeyeventfKeyup = 0x0002;
     private const ushort VkReturn = 0x0D;
+    private const ushort VkBack = 0x08;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -297,6 +473,16 @@ internal static class NativeTyping
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    public static bool TypeBackspace()
+    {
+        var inputs = new[]
+        {
+            CreateVirtualKeyInput(VkBack, 0),
+            CreateVirtualKeyInput(VkBack, KeyeventfKeyup)
+        };
+        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
+    }
 
     public static bool TypeCharacter(char character)
     {
