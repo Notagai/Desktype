@@ -2,14 +2,29 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace Desktype;
 
 public partial class MainWindow : Window
 {
+    private const int HotkeyId = 0xD357;
+    private const int WmHotkey = 0x0312;
+    private const uint NoModifiers = 0;
+    private const uint DefaultHotkey = 0x7A; // F11
     private CancellationTokenSource? _typingCancellation;
+    private HwndSource? _source;
+    private uint _hotkeyVirtualKey = DefaultHotkey;
+    private bool _hotkeyRegistered;
+    private bool _isCapturingHotkey;
     private bool _isTyping;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     public MainWindow()
     {
@@ -18,41 +33,144 @@ public partial class MainWindow : Window
         UpdateCharacterCount();
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        _source?.AddHook(WindowProc);
+        RegisterCurrentHotkey();
+    }
+
+    private void RegisterCurrentHotkey()
+    {
+        if (_source is null) return;
+
+        _hotkeyRegistered = RegisterHotKey(_source.Handle, HotkeyId, NoModifiers, _hotkeyVirtualKey);
+        HotkeyButton.Content = $"Change hotkey · {HotkeyName(_hotkeyVirtualKey)}";
+
+        if (_hotkeyRegistered)
+        {
+            StatusText.Text = "Ready when you are.";
+            StatusDetail.Text = $"Press {HotkeyName(_hotkeyVirtualKey)} in any app to type instantly.";
+        }
+        else
+        {
+            StatusText.Text = "Couldn't register the hotkey.";
+            StatusDetail.Text = "That key may already be in use. Click Change hotkey to choose another.";
+        }
+    }
+
+    private IntPtr WindowProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message == WmHotkey && wParam.ToInt32() == HotkeyId)
+        {
+            handled = true;
+            if (!_isCapturingHotkey)
+                _ = TypeTextAsync();
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private void HotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isCapturingHotkey = true;
+        HotkeyButton.Content = "Press a function key…";
+        StatusText.Text = "Choose your hotkey.";
+        StatusDetail.Text = "Press F1–F11 or F13–F24. Escape cancels.";
+        Activate();
+        Focus();
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isCapturingHotkey) return;
+
+        e.Handled = true;
+        if (e.Key == Key.Escape)
+        {
+            _isCapturingHotkey = false;
+            HotkeyButton.Content = $"Change hotkey · {HotkeyName(_hotkeyVirtualKey)}";
+            StatusText.Text = "Hotkey change cancelled.";
+            StatusDetail.Text = $"Current hotkey: {HotkeyName(_hotkeyVirtualKey)}";
+            return;
+        }
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key < Key.F1 || key > Key.F24 || key == Key.F12)
+        {
+            StatusText.Text = "Choose a function key.";
+            StatusDetail.Text = "Use F1–F11 or F13–F24. F12 is reserved by Windows for debugging.";
+            return;
+        }
+
+        var newVirtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+        var previousVirtualKey = _hotkeyVirtualKey;
+
+        if (_source is null)
+        {
+            StatusText.Text = "Couldn't change the hotkey.";
+            return;
+        }
+
+        if (_hotkeyRegistered)
+        {
+            UnregisterHotKey(_source.Handle, HotkeyId);
+            _hotkeyRegistered = false;
+        }
+
+        if (RegisterHotKey(_source.Handle, HotkeyId, NoModifiers, newVirtualKey))
+        {
+            _hotkeyVirtualKey = newVirtualKey;
+            _hotkeyRegistered = true;
+            _isCapturingHotkey = false;
+            HotkeyButton.Content = $"Change hotkey · {HotkeyName(_hotkeyVirtualKey)}";
+            StatusText.Text = "Hotkey updated.";
+            StatusDetail.Text = $"Press {HotkeyName(_hotkeyVirtualKey)} in any app to type instantly.";
+        }
+        else
+        {
+            _hotkeyRegistered = RegisterHotKey(_source.Handle, HotkeyId, NoModifiers, previousVirtualKey);
+            _isCapturingHotkey = false;
+            HotkeyButton.Content = $"Change hotkey · {HotkeyName(_hotkeyVirtualKey)}";
+            StatusText.Text = "That key is already in use.";
+            StatusDetail.Text = _hotkeyRegistered
+                ? $"Kept the previous hotkey: {HotkeyName(previousVirtualKey)}."
+                : "The previous hotkey couldn't be restored. Try another function key.";
+        }
+    }
+
+    private static string HotkeyName(uint virtualKey) =>
+        KeyInterop.KeyFromVirtualKey((int)virtualKey).ToString();
+
     private void InputText_TextChanged(object sender, TextChangedEventArgs e) => UpdateCharacterCount();
 
     private void UpdateCharacterCount() =>
         CharacterCount.Text = $"{InputText.Text.Length:N0} character{(InputText.Text.Length == 1 ? "" : "s")}";
 
-    private async void StartButton_Click(object sender, RoutedEventArgs e)
+    private async Task TypeTextAsync()
     {
         if (_isTyping) return;
+
         var text = InputText.Text;
         if (string.IsNullOrEmpty(text))
         {
             StatusText.Text = "Add some text first.";
             StatusDetail.Text = "The text box above is empty.";
-            InputText.Focus();
             return;
         }
 
         _isTyping = true;
         _typingCancellation = new CancellationTokenSource();
         var token = _typingCancellation.Token;
-        StartButton.IsEnabled = false;
         InputText.IsEnabled = false;
+        HotkeyButton.IsEnabled = false;
         StopButton.IsEnabled = true;
 
         try
         {
-            for (var seconds = 3; seconds > 0; seconds--)
-            {
-                StatusText.Text = $"Switch to your target app… {seconds}";
-                StatusDetail.Text = "Click where you want the text to appear.";
-                await Task.Delay(1000, token);
-            }
-
             StatusText.Text = "Typing…";
-            StatusDetail.Text = "Press Stop to cancel.";
+            StatusDetail.Text = $"Started instantly with {HotkeyName(_hotkeyVirtualKey)}. Press Stop to cancel.";
             foreach (var character in text)
             {
                 token.ThrowIfCancellationRequested();
@@ -79,8 +197,8 @@ public partial class MainWindow : Window
             _typingCancellation?.Dispose();
             _typingCancellation = null;
             _isTyping = false;
-            StartButton.IsEnabled = true;
             InputText.IsEnabled = true;
+            HotkeyButton.IsEnabled = true;
             StopButton.IsEnabled = false;
         }
     }
@@ -91,6 +209,12 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         _typingCancellation?.Cancel();
+        if (_source is not null)
+        {
+            _source.RemoveHook(WindowProc);
+            if (_hotkeyRegistered)
+                UnregisterHotKey(_source.Handle, HotkeyId);
+        }
         base.OnClosing(e);
     }
 }
