@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10110f">
+  <meta name="description" content="Desktype — precision for your words. A Windows desktop utility built to put text exactly where you need it.">
+  <title>DESKTYPE® — Precision in every keystroke.</title>
+
+  <!-- Tailwind CDN keeps this prototype build-free. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#10110f',
+            paper: '#e9e9e2',
+            acid: '#c8ff38',
+            muted: '#77796f'
+          },
+          fontFamily: {
+            display: ['Arial Black', 'Impact', 'sans-serif'],
+            sans: ['Inter', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- GSAP powers the scroll-linked motion; ScrollTrigger connects it to page position. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+
+  <style>
+    :root { color-scheme: dark; --acid: #c8ff38; --ink: #10110f; --paper: #e9e9e2; }
+    * { box-sizing: border-box; }
+    html { background: var(--ink); scroll-behavior: smooth; }
+    body { margin: 0; background: var(--ink); color: var(--paper); font-family: Inter, Arial, sans-serif; overflow-x: clip; }
+    ::selection { color: var(--ink); background: var(--acid); }
+    .display { font-family: "Arial Black", Impact, sans-serif; font-weight: 900; letter-spacing: -.075em; line-height: .82; }
+    .eyebrow { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; }
+    .outline-text { color: transparent; -webkit-text-stroke: 1px rgba(233,233,226,.7); }
+    .hero-word { display: block; transform-origin: 50% 50%; will-change: transform, opacity; }
+    .grid-lines {
+      background-image: linear-gradient(rgba(233,233,226,.11) 1px, transparent 1px), linear-gradient(90deg, rgba(233,233,226,.11) 1px, transparent 1px);
+      background-size: 5.5vw 5.5vw;
+    }
+    .cinema-frame { transform-origin: center center; will-change: transform, border-radius; }
+    .cinema-image { transform: scale(1.12); will-change: transform; }
+    .marquee-track { display: flex; width: max-content; will-change: transform; }
+    .marquee-group { display: flex; flex-shrink: 0; align-items: center; gap: 2.5rem; padding-right: 2.5rem; }
+    .marquee-label { font-family: "Arial Black", Impact, sans-serif; font-size: clamp(2rem, 5vw, 5rem); line-height: 1; letter-spacing: -.06em; white-space: nowrap; }
+    .word { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; }
+    .word > span { display: inline-block; transform: translateY(115%); }
+    .reveal-line { overflow: hidden; }
+    .reveal-line > span { display: inline-block; transform: translateY(110%); }
+    .hairline { height: 1px; background: rgba(233,233,226,.2); }
+    .plus-mark { color: var(--acid); font-size: 1.5rem; line-height: 1; }
+    .button-link { display: inline-flex; align-items: center; justify-content: space-between; gap: 2.5rem; border: 1px solid rgba(233,233,226,.4); padding: 1rem 1.2rem; transition: background .25s ease, color .25s ease, border-color .25s ease; }
+    .button-link:hover { background: var(--acid); color: var(--ink); border-color: var(--acid); }
+    .noise { position: absolute; inset: 0; pointer-events: none; opacity: .06; z-index: 2; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E"); }
+    @media (max-width: 640px) {
+      .grid-lines { background-size: 12vw 12vw; }
+      .display { letter-spacing: -.065em; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Fixed utility nav: deliberately minimal so the typography stays in focus. -->
+  <header class="fixed inset-x-0 top-0 z-50 px-5 md:px-10 py-5 mix-blend-difference">
+    <nav class="flex items-center justify-between" aria-label="Main navigation">
+      <a href="#top" class="font-black text-sm tracking-tight" aria-label="Desktype home">DESKTYPE<span class="text-acid">®</span></a>
+      <div class="hidden md:flex items-center gap-8 eyebrow">
+        <a class="hover:text-acid transition-colors" href="#approach">Approach</a>
+        <a class="hover:text-acid transition-colors" href="#details">Details</a>
+        <a class="hover:text-acid transition-colors" href="#download">Get the app ↗</a>
+      </div>
+      <span class="eyebrow text-acid">Windows utility / 01</span>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- HERO: headline scales away as the structural side labels enter. -->
+    <section id="hero" class="relative min-h-[100svh] flex flex-col justify-center overflow-hidden px-5 md:px-10 pt-28 pb-16">
+      <div class="absolute inset-0 grid-lines opacity-40" aria-hidden="true"></div>
+      <div class="noise" aria-hidden="true"></div>
+      <div class="relative z-10 flex flex-col justify-between flex-1">
+        <div class="flex items-start justify-between gap-5 eyebrow text-muted">
+          <p class="hero-side max-w-32 md:max-w-48">A small utility.<br>One clear purpose.</p>
+          <p class="hero-side text-right max-w-36 md:max-w-48">Built for focus.<br>Made for Windows.</p>
+        </div>
+
+        <div class="py-16 md:py-20">
+          <p class="eyebrow text-acid mb-5 hero-kicker">Precision in every keystroke</p>
+          <h1 id="hero-title" class="display uppercase text-[clamp(4.5rem,16.2vw,15rem)] leading-[.77]">
+            <span class="hero-word">WORDS</span>
+            <span class="hero-word outline-text flex items-center gap-[.08em]">IN<span class="text-acid not-italic">.</span> MOTION</span>
+          </h1>
+        </div>
+
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <p class="hero-side max-w-sm text-sm md:text-base leading-relaxed text-paper/70">Put your text where you need it. Desktype sends Unicode keystrokes to the field you choose — no clutter, no cloud, just control.</p>
+          <a href="#download" class="hero-side button-link eyebrow w-full md:w-auto">
+            Explore Desktype <span class="text-lg text-acid">↘</span>
+          </a>
+        </div>
+      </div>
+      <div class="absolute bottom-5 left-5 md:left-10 eyebrow text-muted flex items-center gap-3">
+        <span class="inline-block w-2 h-2 rounded-full bg-acid animate-pulse"></span> Scroll to explore
+      </div>
+      <div class="absolute bottom-5 right-5 md:right-10 eyebrow text-muted">43° 39′ N / DIGITAL TOOL</div>
+    </section>
+
+    <!-- INTRO: split-word reveal. -->
+    <section id="approach" class="relative px-5 md:px-10 py-28 md:py-44 bg-paper text-ink">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10">
+        <div class="md:col-span-3 eyebrow text-ink/55 flex items-start gap-3">
+          <span class="text-ink">01 /</span><span>Designed for flow</span>
+        </div>
+        <div class="md:col-span-9">
+          <h2 class="split-heading display text-[clamp(3rem,9vw,8.5rem)] uppercase max-w-6xl">
+            Less friction.<br><span class="text-ink/30">More momentum.</span>
+          </h2>
+          <div class="mt-12 md:mt-16 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
+            <p class="text-lg md:text-2xl leading-snug max-w-xl">The tiny moments add up. Desktype helps move text from your idea to the active field with a simple, deliberate workflow.</p>
+            <div class="flex flex-col justify-between gap-8">
+              <p class="text-sm leading-relaxed text-ink/60 max-w-md">Choose your text, set your preferences, focus the destination, and let the keystrokes flow. A focused desktop tool, not another account to manage.</p>
+              <span class="eyebrow border-t border-ink/20 pt-4">No backend. No account. Windows only.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CINEMATIC PANEL: sticky scroll scene with grid visible behind the scaling image. -->
+    <section id="cinema" class="relative h-[220vh] bg-ink" aria-label="Cinematic product scene">
+      <div class="sticky top-0 h-[100svh] overflow-hidden grid-lines">
+        <div class="absolute inset-0 flex flex-col justify-between p-5 md:p-10 z-20 pointer-events-none">
+          <div class="flex justify-between eyebrow text-paper/70">
+            <span>02 / The machine</span><span>Scroll-driven study</span>
+          </div>
+          <div class="flex justify-between items-end gap-6">
+            <p class="cinema-caption eyebrow text-acid max-w-40">A tool that stays out of your way.</p>
+            <p class="cinema-caption display text-right text-[clamp(2.5rem,7vw,7rem)]">STAY<br>IN FLOW<span class="text-acid">.</span></p>
+          </div>
+        </div>
+        <div class="absolute inset-[8%_4%] md:inset-[10%_10%] grid place-items-center">
+          <div class="cinema-frame relative w-full h-full overflow-hidden rounded-sm border border-paper/10">
+            <img class="cinema-image absolute inset-0 w-full h-full object-cover" src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=2200&q=85" alt="Sculptural performance car bodywork in dramatic light" loading="lazy">
+            <div class="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/5 to-ink/20"></div>
+            <div class="noise"></div>
+            <div class="absolute left-5 md:left-10 bottom-6 md:bottom-10 right-5 md:right-10 flex justify-between items-end gap-5">
+              <p class="display text-4xl md:text-7xl">FOCUS<br>IS A FEATURE<span class="text-acid">.</span></p>
+              <span class="eyebrow text-right text-paper/70 hidden sm:block">Precision /<br>Not distraction</span>
+            </div>
+          </div>
+        </div>
+        <div class="absolute inset-0 pointer-events-none border-[1px] border-paper/10 m-3 md:m-6"></div>
+      </div>
+    </section>
+
+    <!-- MARQUEE: its timeScale responds to ScrollTrigger's measured scroll velocity. -->
+    <section class="overflow-hidden bg-acid text-ink py-6 md:py-10" aria-label="Desktype principles">
+      <div class="marquee-track" id="marquee-track">
+        <div class="marquee-group" aria-hidden="true">
+          <span class="marquee-label">FOCUS FIRST</span><span class="text-3xl">✳</span>
+          <span class="marquee-label">TYPE WITH INTENT</span><span class="text-3xl">✳</span>
+          <span class="marquee-label">STAY IN FLOW</span><span class="text-3xl">✳</span>
+        </div>
+        <div class="marquee-group" aria-hidden="true">
+          <span class="marquee-label">FOCUS FIRST</span><span class="text-3xl">✳</span>
+          <span class="marquee-label">TYPE WITH INTENT</span><span class="text-3xl">✳</span>
+          <span class="marquee-label">STAY IN FLOW</span><span class="text-3xl">✳</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES: individual words rise into view with a stagger. -->
+    <section id="details" class="px-5 md:px-10 py-28 md:py-44">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10">
+        <div class="md:col-span-3 eyebrow text-muted flex items-start gap-3"><span class="text-acid">03 /</span><span>Small by design</span></div>
+        <div class="md:col-span-9">
+          <h2 class="split-heading display uppercase text-[clamp(3.2rem,10vw,9rem)]">A sharper<br>way to <span class="outline-text">type.</span></h2>
+          <div class="hairline mt-16 mb-2"></div>
+          <article class="feature-row grid grid-cols-1 sm:grid-cols-12 gap-4 py-7 border-b border-paper/15">
+            <span class="sm:col-span-1 eyebrow text-acid">01</span>
+            <h3 class="sm:col-span-5 display text-3xl md:text-5xl uppercase">Unicode input</h3>
+            <p class="sm:col-span-5 sm:col-start-8 text-sm leading-relaxed text-paper/60 max-w-md">Send supplied text as keyboard input to the currently focused field. Keep your workflow in the app you're already using.</p>
+          </article>
+          <article class="feature-row grid grid-cols-1 sm:grid-cols-12 gap-4 py-7 border-b border-paper/15">
+            <span class="sm:col-span-1 eyebrow text-acid">02</span>
+            <h3 class="sm:col-span-5 display text-3xl md:text-5xl uppercase">Your settings</h3>
+            <p class="sm:col-span-5 sm:col-start-8 text-sm leading-relaxed text-paper/60 max-w-md">A straightforward desktop interface with configurable typing behavior and progress controls.</p>
+          </article>
+          <article class="feature-row grid grid-cols-1 sm:grid-cols-12 gap-4 py-7 border-b border-paper/15">
+            <span class="sm:col-span-1 eyebrow text-acid">03</span>
+            <h3 class="sm:col-span-5 display text-3xl md:text-5xl uppercase">On your PC</h3>
+            <p class="sm:col-span-5 sm:col-start-8 text-sm leading-relaxed text-paper/60 max-w-md">A Windows utility that doesn't need a cloud account or a backend service to do its job.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section id="download" class="relative overflow-hidden bg-acid text-ink px-5 md:px-10 py-24 md:py-36">
+      <div class="absolute inset-0 grid-lines opacity-25" aria-hidden="true"></div>
+      <div class="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-12">
+        <div class="md:col-span-8">
+          <p class="eyebrow mb-8">04 / Take control</p>
+          <h2 class="display uppercase text-[clamp(4rem,13vw,12rem)]">MAKE<br>IT FLOW<span class="text-paper">.</span></h2>
+        </div>
+        <div class="md:col-span-4 flex flex-col justify-end items-start gap-6">
+          <p class="max-w-sm text-base md:text-lg leading-relaxed">Ready to put Desktype to work? Get the Windows build from the official GitHub release page.</p>
+          <a class="button-link border-ink/50 hover:border-ink w-full sm:w-auto eyebrow" href="https://github.com/Notagai/Desktype/releases/latest" target="_blank" rel="noopener noreferrer">
+            Download Desktype <span class="text-xl">↗</span>
+          </a>
+          <p class="eyebrow text-ink/60">Windows 10/11 · x64 · Free</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="px-5 md:px-10 py-7 flex flex-col sm:flex-row justify-between gap-4 eyebrow text-muted">
+    <span>DESKTYPE® — BUILT FOR FLOW</span>
+    <span>Independent project / © <span id="year"></span></span>
+    <a class="hover:text-acid transition-colors" href="#top">Back to top ↑</a>
+  </footer>
+
+  <script>
+    // Wait for both deferred CDN scripts before registering animations.
+    window.addEventListener('load', () => {
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      // Respect the user's system motion preference; the layout remains complete without animation.
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion || !window.gsap || !window.ScrollTrigger) return;
+
+      gsap.registerPlugin(ScrollTrigger);
+
+      // Hero: scale the large headline away and move the side information in opposite directions.
+      const heroTimeline = gsap.timeline({
+        scrollTrigger: {
+          trigger: '#hero',
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 1,
+          invalidateOnRefresh: true
+        }
+      });
+      heroTimeline
+        .to('#hero-title', { scale: 1.22, yPercent: -18, opacity: 0, ease: 'none' }, 0)
+        .to('.hero-kicker', { y: -35, opacity: 0, ease: 'none' }, 0)
+        .to('.hero-side:first-child', { xPercent: -35, opacity: 0, ease: 'none' }, 0)
+        .to('.hero-side:nth-child(2)', { xPercent: 35, opacity: 0, ease: 'none' }, 0);
+
+      // Split headings into word wrappers for a precise, staggered upward reveal.
+      document.querySelectorAll('.split-heading').forEach((heading) => {
+        const walk = document.createTreeWalker(heading, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        while (walk.nextNode()) {
+          if (walk.currentNode.nodeValue.trim()) textNodes.push(walk.currentNode);
+        }
+        textNodes.forEach((node) => {
+          const fragment = document.createDocumentFragment();
+          node.nodeValue.split(/(\s+)/).forEach((part) => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) {
+              fragment.appendChild(document.createTextNode(part));
+            } else {
+              const word = document.createElement('span');
+              word.className = 'word';
+              const inner = document.createElement('span');
+              inner.textContent = part;
+              word.appendChild(inner);
+              fragment.appendChild(word);
+            }
+          });
+          node.parentNode.replaceChild(fragment, node);
+        });
+
+        const words = heading.querySelectorAll('.word > span');
+        gsap.to(words, {
+          y: '0%',
+          duration: 0.9,
+          ease: 'power3.out',
+          stagger: 0.045,
+          scrollTrigger: { trigger: heading, start: 'top 82%', once: true }
+        });
+      });
+
+      // Cinematic panel: the surrounding grid is revealed as the image frame scales inward.
+      gsap.timeline({
+        scrollTrigger: {
+          trigger: '#cinema',
+          start: 'top top',
+          end: 'bottom bottom',
+          scrub: 1,
+          invalidateOnRefresh: true
+        }
+      })
+      .fromTo('.cinema-frame',
+        { scale: 1, borderRadius: '2px' },
+        { scale: 0.78, borderRadius: '10px', ease: 'none' }, 0)
+      .fromTo('.cinema-image',
+        { scale: 1.12 },
+        { scale: 1, ease: 'none' }, 0)
+      .fromTo('.cinema-caption',
+        { y: 22, opacity: 0.45 },
+        { y: 0, opacity: 1, ease: 'none' }, 0.15);
+
+      // Seamless marquee loop. Scroll velocity temporarily increases its speed in either direction.
+      const marquee = gsap.to('#marquee-track', {
+        xPercent: -50,
+        duration: 24,
+        ease: 'none',
+        repeat: -1
+      });
+      let resetSpeedCall;
+      ScrollTrigger.create({
+        trigger: document.body,
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate: (self) => {
+          const velocity = self.getVelocity();
+          const direction = velocity < 0 ? -1 : 1;
+          const speed = Math.min(3.5, 1 + Math.abs(velocity) / 1800);
+          marquee.timeScale(direction * speed);
+          if (resetSpeedCall) resetSpeedCall.kill();
+          resetSpeedCall = gsap.delayedCall(0.25, () => {
+            gsap.to(marquee, { timeScale: 1, duration: 0.65, ease: 'power2.out', overwrite: true });
+          });
+        }
+      });
+
+      // Feature rows enter with a quiet stagger, keeping motion subordinate to the content.
+      gsap.from('.feature-row', {
+        y: 35,
+        opacity: 0,
+        duration: 0.8,
+        stagger: 0.14,
+        ease: 'power2.out',
+        scrollTrigger: { trigger: '#details', start: 'top 62%', once: true }
+      });
+
+      // Recalculate measurements after the remote image loads and the browser lays out the page.
+      const images = Array.from(document.images);
+      Promise.all(images.map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      }))).then(() => ScrollTrigger.refresh());
+    });
+  </script>
+</body>
+</html>
