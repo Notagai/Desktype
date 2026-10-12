@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private bool _hotkeyRegistered;
     private bool _isCapturingHotkey;
     private bool _isTyping;
+    private IntPtr _typingTargetWindow;
     private bool _pauseRequested;
     private bool _isPaused;
     private bool _loadingSettings;
@@ -51,6 +52,12 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     public MainWindow()
     {
@@ -255,6 +262,10 @@ public partial class MainWindow : Window
 
         if (_isPaused)
         {
+            // Clicking Resume gives Desktype focus. Return focus to the original
+            // destination before sending the next character.
+            if (_typingTargetWindow != IntPtr.Zero)
+                SetForegroundWindow(_typingTargetWindow);
             _isPaused = false;
             PauseButton.Content = "Pause";
             StatusText.Text = "Resuming…";
@@ -286,6 +297,9 @@ public partial class MainWindow : Window
     {
         if (_isTyping) return;
 
+        // The global hotkey starts typing without activating Desktype, so this
+        // captures the destination that should receive input after a pause.
+        _typingTargetWindow = GetForegroundWindow();
         var text = InputText.Text;
         if (string.IsNullOrEmpty(text))
         {
@@ -407,6 +421,7 @@ public partial class MainWindow : Window
             _typingCancellation?.Dispose();
             _typingCancellation = null;
             _isTyping = false;
+            _typingTargetWindow = IntPtr.Zero;
             _pauseRequested = false;
             _isPaused = false;
             PauseButton.Content = "Pause";
