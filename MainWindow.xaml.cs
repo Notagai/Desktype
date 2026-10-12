@@ -26,6 +26,8 @@ public partial class MainWindow : Window
     private bool _hotkeyRegistered;
     private bool _isCapturingHotkey;
     private bool _isTyping;
+    // Current character index for this in-memory typing session; never persisted.
+    private int _typingPosition;
     private IntPtr _typingTargetWindow;
     private bool _pauseRequested;
     private bool _isPaused;
@@ -330,6 +332,7 @@ public partial class MainWindow : Window
         var pauseScale = Math.Min(1.0, Math.Pow(180.0 / wpm, 1.5));
         var burstLength = Random.Shared.Next(4, 10);
         var charactersInBurst = 0;
+        _typingPosition = 0;
         _isTyping = true;
         _pauseRequested = false;
         _isPaused = false;
@@ -347,7 +350,7 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text = $"Typing · {wpm} WPM";
-            for (var i = 0; i < text.Length; i++)
+            while (_typingPosition < text.Length)
             {
                 token.ThrowIfCancellationRequested();
                 if (_pauseRequested || _isPaused)
@@ -362,8 +365,9 @@ public partial class MainWindow : Window
                     PauseButton.Content = "Pause";
                     StatusText.Text = $"Typing · {wpm} WPM";
                 }
-                var character = text[i];
-                if (typoPositions.Contains(i))
+                var characterIndex = _typingPosition;
+                var character = text[characterIndex];
+                if (typoPositions.Contains(characterIndex))
                 {
                     var wrongCharacter = GetTypoCharacter(character);
                     if (typoMode == TypoMode.Corrected)
@@ -384,6 +388,9 @@ public partial class MainWindow : Window
                 if (!NativeTyping.TypeCharacter(character))
                     throw new InvalidOperationException("Windows could not send keyboard input.");
 
+                // Advance only after this source character was sent successfully.
+                _typingPosition++;
+                StatusText.Text = $"Typing · {wpm} WPM · {_typingPosition}/{text.Length}";
                 charactersInBurst++;
                 var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
                 var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.68 * speedVariation));
@@ -422,6 +429,7 @@ public partial class MainWindow : Window
             _typingCancellation = null;
             _isTyping = false;
             _typingTargetWindow = IntPtr.Zero;
+            _typingPosition = 0;
             _pauseRequested = false;
             _isPaused = false;
             PauseButton.Content = "Pause";
