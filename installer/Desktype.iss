@@ -11,6 +11,7 @@ AppId={{A2D06B2B-75B4-4A71-94B9-7B3C7D28C9E1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+SetupIconFile=..\logo\Desktype.ico
 DefaultDirName={localappdata}\Programs\Desktype
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
