@@ -284,6 +284,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ResetProgressButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isTyping || _typingSessionText is null) return;
+
+        _typingPosition = 0;
+        StatusText.Text = "Progress reset · press F11 to start from the beginning";
+        ResetProgressButton.IsEnabled = true;
+    }
+
     private void InputText_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
 
     private void WpmInput_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
@@ -349,6 +358,7 @@ public partial class MainWindow : Window
             SetForegroundWindow(_typingTargetWindow);
         }
 
+        ResetProgressButton.IsEnabled = true;
         var typoMode = _typingSessionTypoMode;
         var typoPositions = _typingSessionTypoPositions;
         var targetCharacterInterval = 12000.0 / wpm;
@@ -441,6 +451,7 @@ public partial class MainWindow : Window
             _typingSessionText = null;
             _typingSessionTypoPositions.Clear();
             _typingTargetWindow = IntPtr.Zero;
+            ResetProgressButton.IsEnabled = false;
         }
         catch (OperationCanceledException)
         {
@@ -459,6 +470,7 @@ public partial class MainWindow : Window
             _isPaused = false;
             PauseButton.Content = "Pause";
             PauseButton.IsEnabled = false;
+            ResetProgressButton.IsEnabled = _typingSessionText is not null;
             InputText.IsEnabled = true;
             HotkeyButton.IsEnabled = true;
             WpmInput.IsEnabled = true;
