@@ -6,6 +6,7 @@
         WindowStartupLocation="CenterScreen"
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown"
+        Closing="Window_Closing"
         Background="#F5F2FB"
         FontFamily="Segoe UI">
     <Window.Resources>
