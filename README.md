@@ -15,7 +15,6 @@ The first public builds are unsigned, so Windows SmartScreen may show a warning.
 
 - WPF desktop interface
 - Enter or edit the text to type
-- Three-second countdown to switch to the target app
 - Sends Unicode keyboard input to the focused field using Windows SendInput
 - Pause/stop and resume typing
 - In-memory typing progress and Reset Progress control
