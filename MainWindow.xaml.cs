@@ -71,9 +71,10 @@ public partial class MainWindow : Window
                     ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings()
                     : new AppSettings();
             }
-            catch
+            catch (Exception ex)
             {
                 settings = new AppSettings();
+                StatusText.Text = $"Couldn't read saved settings: {ex.Message}";
             }
 
             InputText.Text = settings.Text ?? "";
@@ -120,12 +121,20 @@ public partial class MainWindow : Window
         try
         {
             Directory.CreateDirectory(SettingsDirectory);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            var temporaryPath = SettingsPath + ".tmp";
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(temporaryPath, SettingsPath, overwrite: true);
         }
-        catch
+        catch (Exception ex)
         {
-            // Settings persistence must never interrupt typing or close the app.
+            // Keep the app usable, but make persistence failures visible instead of silently losing data.
+            StatusText.Text = $"Couldn't save settings: {ex.Message}";
         }
+    }
+
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        SaveSettings();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
