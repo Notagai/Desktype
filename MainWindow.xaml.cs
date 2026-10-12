@@ -341,6 +341,13 @@ public partial class MainWindow : Window
             // Capture the destination only for a new session, not when resuming.
             _typingTargetWindow = GetForegroundWindow();
         }
+        else if (_typingTargetWindow != IntPtr.Zero)
+        {
+            // F11 can stop a session while Desktype has focus (for example, if
+            // the user stopped while paused). Restore the original destination
+            // before continuing so resumed keystrokes don't go into this window.
+            SetForegroundWindow(_typingTargetWindow);
+        }
 
         var typoMode = _typingSessionTypoMode;
         var typoPositions = _typingSessionTypoPositions;
