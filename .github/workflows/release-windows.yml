@@ -1,0 +1,88 @@
+name: Build and release Windows app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Determine version
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$') {
+            $version = "0.0.0"
+          }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Packaging Desktype version $version"
+
+      - name: Publish self-contained single-file EXE
+        shell: pwsh
+        run: |
+          Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
+          dotnet publish Desktype.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -p:Version="$env:APP_VERSION" -o dist/publish
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+          if (!(Test-Path dist/publish/Desktype.exe)) { throw "Published EXE was not produced" }
+          Copy-Item dist/publish/Desktype.exe dist/Desktype.exe
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found at $iscc" }
+          & $iscc "/DMyAppVersion=$env:APP_VERSION" "installer/Desktype.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+          if (!(Test-Path dist/Desktype-Setup.exe)) { throw "Installer was not produced" }
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $lines = @()
+          foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe")) {
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $name = Split-Path $file -Leaf
+            $lines += "$hash  $name"
+          }
+          $lines | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktype-Windows-x64
+          path: |
+            dist/Desktype.exe
+            dist/Desktype-Setup.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Desktype \${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/Desktype.exe
+            dist/Desktype-Setup.exe
+            dist/SHA256SUMS.txt
