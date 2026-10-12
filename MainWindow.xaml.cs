@@ -26,6 +26,8 @@ public partial class MainWindow : Window
     private bool _hotkeyRegistered;
     private bool _isCapturingHotkey;
     private bool _isTyping;
+    private bool _pauseRequested;
+    private bool _isPaused;
     private bool _loadingSettings;
 
     private enum TypoMode
@@ -247,6 +249,24 @@ public partial class MainWindow : Window
     private static string HotkeyName(uint virtualKey) =>
         KeyInterop.KeyFromVirtualKey((int)virtualKey).ToString();
 
+    private void PauseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isTyping) return;
+
+        if (_isPaused)
+        {
+            _isPaused = false;
+            PauseButton.Content = "Pause";
+            StatusText.Text = "Resuming…";
+        }
+        else if (!_pauseRequested)
+        {
+            _pauseRequested = true;
+            PauseButton.Content = "Pausing…";
+            StatusText.Text = "Pausing after current character…";
+        }
+    }
+
     private void InputText_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
 
     private void WpmInput_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
@@ -297,6 +317,10 @@ public partial class MainWindow : Window
         var burstLength = Random.Shared.Next(4, 10);
         var charactersInBurst = 0;
         _isTyping = true;
+        _pauseRequested = false;
+        _isPaused = false;
+        PauseButton.Content = "Pause";
+        PauseButton.IsEnabled = true;
         _typingCancellation = new CancellationTokenSource();
         var token = _typingCancellation.Token;
         HotkeyButton.IsEnabled = false;
@@ -312,6 +336,18 @@ public partial class MainWindow : Window
             for (var i = 0; i < text.Length; i++)
             {
                 token.ThrowIfCancellationRequested();
+                if (_pauseRequested || _isPaused)
+                {
+                    _pauseRequested = false;
+                    _isPaused = true;
+                    PauseButton.Content = "Resume";
+                    StatusText.Text = "Paused · press Resume to continue";
+                    while (_isPaused)
+                        await Task.Delay(50, token);
+
+                    PauseButton.Content = "Pause";
+                    StatusText.Text = $"Typing · {wpm} WPM";
+                }
                 var character = text[i];
                 if (typoPositions.Contains(i))
                 {
@@ -371,6 +407,10 @@ public partial class MainWindow : Window
             _typingCancellation?.Dispose();
             _typingCancellation = null;
             _isTyping = false;
+            _pauseRequested = false;
+            _isPaused = false;
+            PauseButton.Content = "Pause";
+            PauseButton.IsEnabled = false;
             HotkeyButton.IsEnabled = true;
             WpmInput.IsEnabled = true;
             TyposPer100Input.IsEnabled = true;
