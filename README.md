@@ -26,11 +26,11 @@ Keep the test in a harmless text field first. The app types into whichever field
 ## Requirements
 
 - Windows 10 or 11, 64-bit
-- .NET 8 SDK only if running from source
+- .NET 10 SDK only if running from source
 
 ## Run from source
 
-1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+1. Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 2. Open PowerShell in the folder containing Desktype.csproj.
 3. Run:
 
