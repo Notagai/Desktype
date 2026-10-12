@@ -4,10 +4,13 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+# Builds need read-only repository access. Only the tag-release job can publish releases.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-windows:
@@ -73,10 +76,31 @@ jobs:
             dist/Desktype-Setup.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download built release files
+        uses: actions/download-artifact@v4
+        with:
+          name: Desktype-Windows-x64
+          path: dist
+          merge-multiple: true
+
+      - name: Verify release files exist
+        shell: pwsh
+        run: |
+          foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe", "dist/SHA256SUMS.txt")) {
+            if (!(Test-Path $file)) { throw "Expected release file missing: $file" }
+          }
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: Desktype release
