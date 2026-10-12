@@ -12,7 +12,7 @@ The workflow also uploads these files as a temporary GitHub Actions artifact for
 
 ## Build locally
 
-On Windows with the .NET 8 SDK and Inno Setup 6 installed:
+On Windows with the .NET 10 SDK and Inno Setup 6 installed:
 
 ```powershell
 dotnet publish Desktype.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/publish
@@ -44,7 +44,7 @@ This automation is a packaging setup, not a legal certification. Before distribu
 
 - Choose and publish a software license only if you have the rights to grant it; do not assume that a public GitHub repository automatically grants reuse rights.
 - Review third-party dependency and .NET runtime licensing/notice requirements for the exact release.
-- Keep a privacy statement accurate. The current app documentation says it has no backend, network connection, or external API; re-check that claim if features change.
+- Keep a privacy statement accurate. The app documentation says it has no backend, network connection, or external API; re-check that claim if features change.
 - Test installation, launch, upgrade-over-previous-version, and uninstall on a clean Windows 10/11 x64 machine before calling a release stable.
 - Test the portable EXE on a clean machine without the .NET runtime installed.
 - Review accessibility, security, and any consumer-protection or distribution requirements applicable to your jurisdiction and audience.
