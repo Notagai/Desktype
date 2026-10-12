@@ -89,8 +89,17 @@
                     Content="Hotkey: F11" FontSize="12"
                     Click="HotkeyButton_Click"/>
         </Grid>
-        <TextBlock Grid.Row="3" Text="Settings save automatically"
-                   Margin="0,7,0,0" FontSize="10" Foreground="#6D6580"
-                   HorizontalAlignment="Right"/>
+        <Grid Grid.Row="3" Margin="0,7,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="PauseButton" Grid.Column="0" Content="Pause"
+                    IsEnabled="False" Click="PauseButton_Click"
+                    Padding="10,4" FontSize="11"/>
+            <TextBlock Grid.Column="1" Text="Settings save automatically"
+                       FontSize="10" Foreground="#6D6580"
+                       VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        </Grid>
     </Grid>
 </Window>
