@@ -26,8 +26,10 @@ public partial class MainWindow : Window
     private bool _hotkeyRegistered;
     private bool _isCapturingHotkey;
     private bool _isTyping;
-    // Current character index for this in-memory typing session; never persisted.
+    // Session progress stays in memory across pause/stop and resume; it is never persisted.
     private int _typingPosition;
+    private string? _typingSessionText;
+    private HashSet<int> _typingSessionTypoPositions = new();
     private IntPtr _typingTargetWindow;
     private bool _pauseRequested;
     private bool _isPaused;
@@ -39,6 +41,8 @@ public partial class MainWindow : Window
         Corrected,
         Left
     }
+
+    private TypoMode _typingSessionTypoMode = TypoMode.Corrected;
 
     private sealed class AppSettings
     {
@@ -299,9 +303,6 @@ public partial class MainWindow : Window
     {
         if (_isTyping) return;
 
-        // The global hotkey starts typing without activating Desktype, so this
-        // captures the destination that should receive input after a pause.
-        _typingTargetWindow = GetForegroundWindow();
         var text = InputText.Text;
         if (string.IsNullOrEmpty(text))
         {
@@ -326,13 +327,27 @@ public partial class MainWindow : Window
         }
 
         SaveSettings();
-        var typoMode = GetTypoMode();
-        var typoPositions = ChooseTypoPositions(text, typosPer100, typoMode != TypoMode.None);
+
+        // Reuse the current in-memory session when the text is unchanged. This
+        // lets F11 stop and restart typing without losing the current position.
+        // Editing the text starts a fresh session. Nothing here is written to disk.
+        if (!string.Equals(_typingSessionText, text, StringComparison.Ordinal))
+        {
+            _typingSessionText = text;
+            _typingPosition = 0;
+            _typingSessionTypoMode = GetTypoMode();
+            _typingSessionTypoPositions = ChooseTypoPositions(
+                text, typosPer100, _typingSessionTypoMode != TypoMode.None);
+            // Capture the destination only for a new session, not when resuming.
+            _typingTargetWindow = GetForegroundWindow();
+        }
+
+        var typoMode = _typingSessionTypoMode;
+        var typoPositions = _typingSessionTypoPositions;
         var targetCharacterInterval = 12000.0 / wpm;
         var pauseScale = Math.Min(1.0, Math.Pow(180.0 / wpm, 1.5));
         var burstLength = Random.Shared.Next(4, 10);
         var charactersInBurst = 0;
-        _typingPosition = 0;
         _isTyping = true;
         _pauseRequested = false;
         _isPaused = false;
@@ -340,6 +355,7 @@ public partial class MainWindow : Window
         PauseButton.IsEnabled = true;
         _typingCancellation = new CancellationTokenSource();
         var token = _typingCancellation.Token;
+        InputText.IsEnabled = false;
         HotkeyButton.IsEnabled = false;
         WpmInput.IsEnabled = false;
         TyposPer100Input.IsEnabled = false;
@@ -414,10 +430,14 @@ public partial class MainWindow : Window
             }
 
             StatusText.Text = "Done";
+            _typingPosition = 0;
+            _typingSessionText = null;
+            _typingSessionTypoPositions.Clear();
+            _typingTargetWindow = IntPtr.Zero;
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Stopped";
+            StatusText.Text = "Stopped · press F11 to resume";
         }
         catch (Exception)
         {
@@ -428,12 +448,11 @@ public partial class MainWindow : Window
             _typingCancellation?.Dispose();
             _typingCancellation = null;
             _isTyping = false;
-            _typingTargetWindow = IntPtr.Zero;
-            _typingPosition = 0;
             _pauseRequested = false;
             _isPaused = false;
             PauseButton.Content = "Pause";
             PauseButton.IsEnabled = false;
+            InputText.IsEnabled = true;
             HotkeyButton.IsEnabled = true;
             WpmInput.IsEnabled = true;
             TyposPer100Input.IsEnabled = true;
