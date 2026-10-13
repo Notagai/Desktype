@@ -107,30 +107,53 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $backup = ""$Destination.update-backup""
-while (Get-Process -Id $TargetPid -ErrorAction SilentlyContinue) {
-    Start-Sleep -Milliseconds 250
+$log = Join-Path $env:TEMP 'Desktype-update.log'
+function Write-UpdateLog([string]$Message) {
+    Add-Content -LiteralPath $log -Value ""$(Get-Date -Format o) $Message""
 }
-Start-Sleep -Milliseconds 400
 try {
+    Write-UpdateLog ""Update helper started for $Destination; waiting for process $TargetPid to exit.""
+    while (Get-Process -Id $TargetPid -ErrorAction SilentlyContinue) {
+        Start-Sleep -Milliseconds 250
+    }
+    Start-Sleep -Milliseconds 400
     if (Test-Path -LiteralPath $Destination) {
         Copy-Item -LiteralPath $Destination -Destination $backup -Force
     }
+    Write-UpdateLog 'Installing verified executable.'
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
     $actual = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actual -ne $ExpectedSha256.ToLowerInvariant()) {
         throw 'Installed executable checksum did not match.'
     }
     Start-Process -FilePath $Destination
+    Write-UpdateLog 'Update installed and application restart requested successfully.'
     Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
 } catch {
+    $errorMessage = $_.Exception.ToString()
+    try { Write-UpdateLog ""UPDATE FAILED: $errorMessage"" } catch {}
     if (Test-Path -LiteralPath $backup) {
-        Copy-Item -LiteralPath $backup -Destination $Destination -Force
+        try {
+            Copy-Item -LiteralPath $backup -Destination $Destination -Force
+            Write-UpdateLog 'Restored previous executable from backup.'
+        } catch {
+            try { Write-UpdateLog ""RESTORE FAILED: $($_.Exception.ToString())"" } catch {}
+        }
     }
     if (Test-Path -LiteralPath $Destination) {
-        Start-Process -FilePath $Destination
+        try { Start-Process -FilePath $Destination } catch {
+            try { Write-UpdateLog ""RESTART FAILED: $($_.Exception.ToString())"" } catch {}
+        }
     }
+    try {
+        Add-Type -AssemblyName PresentationFramework
+        $details = ""Desktype could not finish installing the update. Your previous version was restored when possible."" +
+            [Environment]::NewLine + [Environment]::NewLine + ""Details: $log"" +
+            [Environment]::NewLine + [Environment]::NewLine + $errorMessage
+        [System.Windows.MessageBox]::Show($details, 'Desktype update failed', 'OK', 'Warning') | Out-Null
+    } catch {}
 }
 ";
             await File.WriteAllTextAsync(scriptPath, script);
