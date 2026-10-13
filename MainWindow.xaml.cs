@@ -138,9 +138,17 @@ public partial class MainWindow : Window
         try
         {
             Directory.CreateDirectory(SettingsDirectory);
-            var temporaryPath = SettingsPath + ".tmp";
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temporaryPath, SettingsPath, overwrite: true);
+            var temporaryPath = SettingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings,
+                    new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporaryPath, SettingsPath, overwrite: true);
+            }
+            finally
+            {
+                try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
+            }
         }
         catch (Exception ex)
         {
@@ -490,6 +498,9 @@ public partial class MainWindow : Window
                 }
                 var characterIndex = _typingPosition;
                 var character = text[characterIndex];
+                var characterLength = char.IsHighSurrogate(character)
+                    && characterIndex + 1 < text.Length
+                    && char.IsLowSurrogate(text[characterIndex + 1]) ? 2 : 1;
                 if (typoPositions.Contains(characterIndex))
                 {
                     var wrongCharacter = GetTypoCharacter(character);
@@ -497,7 +508,9 @@ public partial class MainWindow : Window
                     {
                         if (!NativeTyping.TypeCharacter(wrongCharacter))
                             throw new InvalidOperationException("Windows could not send keyboard input.");
-                        await Task.Delay(Random.Shared.Next(75, 181), token);
+                        // Finish the correction atomically with respect to cancellation:
+                        // otherwise a stop during this delay could leave the wrong character behind.
+                        await Task.Delay(Random.Shared.Next(75, 181));
                         if (!NativeTyping.TypeBackspace())
                             throw new InvalidOperationException("Windows could not send Backspace.");
                         await Task.Delay(Random.Shared.Next(35, 91), token);
@@ -508,11 +521,14 @@ public partial class MainWindow : Window
                     }
                 }
 
-                if (!NativeTyping.TypeCharacter(character))
+                var sent = characterLength == 2
+                    ? NativeTyping.TypeSurrogatePair(character, text[characterIndex + 1])
+                    : NativeTyping.TypeCharacter(character);
+                if (!sent)
                     throw new InvalidOperationException("Windows could not send keyboard input.");
 
-                // Advance only after this source character was sent successfully.
-                _typingPosition++;
+                // Advance by UTF-16 code units only after the full Unicode scalar was sent.
+                _typingPosition += characterLength;
                 StatusText.Text = $"Typing · {wpm} WPM · {_typingPosition}/{text.Length}";
                 charactersInBurst++;
                 var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
@@ -687,8 +703,24 @@ internal static class NativeTyping
         return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
     }
 
+    public static bool TypeSurrogatePair(char highSurrogate, char lowSurrogate)
+    {
+        if (!char.IsHighSurrogate(highSurrogate) || !char.IsLowSurrogate(lowSurrogate))
+            return false;
+
+        var inputs = new[]
+        {
+            CreateInput(highSurrogate, KeyeventfUnicode),
+            CreateInput(highSurrogate, KeyeventfUnicode | KeyeventfKeyup),
+            CreateInput(lowSurrogate, KeyeventfUnicode),
+            CreateInput(lowSurrogate, KeyeventfUnicode | KeyeventfKeyup)
+        };
+        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
+    }
+
     public static bool TypeCharacter(char character)
     {
+        if (char.IsSurrogate(character)) return false;
         if (character == '\r') return true;
         if (character == '\n')
         {
