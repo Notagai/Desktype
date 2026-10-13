@@ -19,6 +19,7 @@ The first public builds are unsigned, so Windows SmartScreen may show a warning.
 - Pause/stop and resume typing
 - In-memory typing progress and Reset Progress control
 - Configurable typing settings and typo behavior as implemented in the app
+- Checks GitHub Releases for newer versions at startup and lets you install a verified update
 
 Keep the test in a harmless text field first. The app types into whichever field has focus when the countdown ends; it does not verify the destination.
 
@@ -44,5 +45,5 @@ The GitHub Actions workflow builds a self-contained Windows x64 EXE and Inno Set
 ## Notes
 
 - Windows only; x64 release builds.
-- No backend, network connection, or external API is needed by the app itself.
+- Typing itself needs no backend. Update checks contact the public GitHub Releases API and verify the downloaded executable against the release SHA-256 checksum.
 - Text is sent as Unicode keystrokes. Very large text and some special application fields may behave differently.

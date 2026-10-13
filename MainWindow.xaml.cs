@@ -293,6 +293,71 @@ public partial class MainWindow : Window
         ResetProgressButton.IsEnabled = true;
     }
 
+    private bool _checkingForUpdates;
+
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Check quietly at startup; only interrupt the user when an update exists.
+        await CheckForUpdatesAsync(showUpToDate: false, startupCheck: true);
+    }
+
+    private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesAsync(showUpToDate: true, startupCheck: false);
+    }
+
+    private async Task CheckForUpdatesAsync(bool showUpToDate, bool startupCheck)
+    {
+        if (_checkingForUpdates) return;
+
+        _checkingForUpdates = true;
+        UpdateButton.IsEnabled = false;
+        if (!startupCheck) StatusText.Text = "Checking for updates…";
+
+        try
+        {
+            var update = await UpdateService.CheckAsync();
+            if (update is null)
+            {
+                if (!startupCheck) StatusText.Text = "You're up to date";
+                if (showUpToDate)
+                    MessageBox.Show(this, "You're running the latest version of Desktype.",
+                        "No updates available", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var choice = MessageBox.Show(this,
+                $"Desktype {update.Version} is available.\n\nInstall it now? Desktype will close and restart.",
+                "Update available", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+            if (choice != MessageBoxResult.Yes)
+            {
+                if (!startupCheck) StatusText.Text = $"Update {update.Version} available";
+                return;
+            }
+
+            StatusText.Text = "Downloading and verifying update…";
+            var executablePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executablePath))
+                throw new InvalidOperationException("Couldn't determine the running executable path.");
+
+            await UpdateService.DownloadAndStartAsync(update, executablePath, Environment.ProcessId);
+            Close();
+        }
+        catch (Exception ex)
+        {
+            if (showUpToDate || !startupCheck)
+                MessageBox.Show(this, $"Couldn't check for or install an update.\n\n{ex.Message}",
+                    "Update failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (!startupCheck) StatusText.Text = "Update check failed";
+        }
+        finally
+        {
+            _checkingForUpdates = false;
+            if (IsLoaded) UpdateButton.IsEnabled = true;
+        }
+    }
+
     private void InputText_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
 
     private void WpmInput_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();

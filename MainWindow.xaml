@@ -7,6 +7,7 @@
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing"
+        Loaded="Window_Loaded"
         Background="#F5F2FB"
         FontFamily="Segoe UI">
     <Window.Resources>
@@ -102,9 +103,14 @@
                     IsEnabled="False" Click="ResetProgressButton_Click"
                     Margin="8,0,0,0" Padding="10,4" FontSize="11"
                     ToolTip="Reset the in-memory typing position to the beginning."/>
-            <TextBlock Grid.Column="2" Text="Settings save automatically"
-                       FontSize="10" Foreground="#6D6580"
-                       VerticalAlignment="Center" HorizontalAlignment="Right"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal"
+                        VerticalAlignment="Center" HorizontalAlignment="Right">
+                <TextBlock Text="Settings save automatically" FontSize="10"
+                           Foreground="#6D6580" VerticalAlignment="Center"/>
+                <Button x:Name="UpdateButton" Content="Check updates" Margin="10,0,0,0"
+                        Padding="8,4" FontSize="11" Click="UpdateButton_Click"
+                        ToolTip="Check GitHub Releases and install a verified update."/>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

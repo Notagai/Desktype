@@ -22,6 +22,12 @@ Copy-Item dist/publish/Desktype.exe dist/Desktype.exe
 Get-FileHash dist/Desktype.exe, dist/Desktype-Setup.exe -Algorithm SHA256
 ```
 
+## In-app updates
+
+Desktype checks the latest published, non-prerelease GitHub Release at startup and offers to update when a newer version is available. Users can also select **Check updates** in the app. The updater downloads `Desktype.exe`, verifies its SHA-256 against `SHA256SUMS.txt`, then launches a small PowerShell helper that waits for Desktype to exit, replaces the running executable, and restarts it. This supports both the portable executable and the per-user installed executable without requiring administrator rights. The app does not install an update without the user's confirmation.
+
+Update checks require an internet connection to the public GitHub Releases API. If GitHub is unavailable, the current app remains usable.
+
 ## Download and verification
 
 Download the executable or installer from the **Releases** section of this repository, rather than from third-party mirrors. To check a downloaded file in PowerShell, compare its hash with the matching entry in `SHA256SUMS.txt`:
