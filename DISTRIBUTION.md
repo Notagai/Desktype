@@ -40,12 +40,12 @@ A matching hash helps detect accidental or malicious changes in transit; it does
 
 ## Signing and Windows warnings
 
-Tagged releases are required to be Authenticode-signed before checksums are generated and the release can be published. Configure these repository Actions secrets before creating the next version tag:
+Code signing is enabled when a certificate is available. Configure these repository Actions secrets before creating a signed version tag release; if they are absent, the workflow warns and publishes the release unsigned:
 
 - **`WINDOWS_SIGNING_CERTIFICATE_PFX`** — the base64-encoded contents of a valid code-signing PFX certificate.
 - **`WINDOWS_SIGNING_CERTIFICATE_PASSWORD`** — the PFX password.
 
-The workflow signs both `Desktype.exe` and `Desktype-Setup.exe` with SHA-256, uses a trusted RFC 3161 timestamp service, verifies both signatures, then generates the published SHA-256 checksums. A tagged release intentionally fails if the secrets are absent or signing/verification fails. Branch builds and pull-request builds do not need signing secrets.
+When configured, the workflow signs both `Desktype.exe` and `Desktype-Setup.exe` with SHA-256, uses a trusted RFC 3161 timestamp service, verifies both signatures, then generates the published SHA-256 checksums. If signing secrets are present but signing or verification fails, the release fails rather than publishing binaries with a broken signature. Branch builds and pull-request builds do not need signing secrets.
 
 Obtain the certificate from a trusted code-signing provider. Never commit a certificate, private key, password, or token to the repository. Existing releases remain as originally published and may be unsigned. Authenticode signing helps establish publisher identity and file integrity, but does not guarantee that SmartScreen warnings disappear immediately.
 
