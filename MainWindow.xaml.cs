@@ -71,6 +71,8 @@ public partial class MainWindow : Window
         // named controls (including WpmInput) have been initialized.
         _loadingSettings = true;
         InitializeComponent();
+        var version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
+        Title = $"Desktype v{version}";
         LoadSettings();
     }
 
