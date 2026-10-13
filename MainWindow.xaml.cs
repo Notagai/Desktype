@@ -362,9 +362,32 @@ public partial class MainWindow : Window
 
     private void WpmInput_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
 
-    private void TyposPer100Input_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
+    private void TyposPer100Input_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        SaveSettings();
+        RefreshSessionTypoSettings();
+    }
 
-    private void TypoMode_Changed(object sender, RoutedEventArgs e) => SaveSettings();
+    private void TypoMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings) return;
+        SaveSettings();
+        RefreshSessionTypoSettings();
+    }
+
+    // A stopped session keeps its text position, but typo preferences remain live.
+    // Refreshing here prevents a previous session's mode/rate from overriding the UI.
+    private void RefreshSessionTypoSettings()
+    {
+        if (_loadingSettings || _isTyping || _typingSessionText is null) return;
+        _typingSessionTypoMode = GetTypoMode();
+        if (!int.TryParse(TyposPer100Input.Text, out var rate) || rate < 0 || rate > 100)
+            return;
+
+        _typingSessionTypoPositions = ChooseTypoPositions(
+            _typingSessionText, rate, _typingSessionTypoMode != TypoMode.None);
+        _typingSessionTypoPositions.RemoveWhere(position => position < _typingPosition);
+    }
 
     private TypoMode GetTypoMode()
     {
@@ -549,7 +572,7 @@ public partial class MainWindow : Window
     private static HashSet<int> ChooseTypoPositions(string text, int typosPer100, bool enabled)
     {
         var positions = new HashSet<int>();
-        if (!enabled || typosPer100 <= 0) return positions;
+        if (!enabled || typosPer100 <= 0 || string.IsNullOrEmpty(text)) return positions;
 
         var wordCount = Regex.Matches(text, @"\b[\p{L}\p{N}']+\b").Count;
         if (wordCount == 0) return positions;
