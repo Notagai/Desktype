@@ -64,7 +64,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
           if (!(Test-Path dist/Desktype-Setup.exe)) { throw "Installer was not produced" }
 
-      - name: Sign release binaries
+      - name: Sign release binaries when a certificate is configured
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
@@ -73,7 +73,8 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PFX) -or
               [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD)) {
-            throw "Release signing secrets are required. Configure WINDOWS_SIGNING_CERTIFICATE_PFX and WINDOWS_SIGNING_CERTIFICATE_PASSWORD."
+            Write-Warning "Signing certificate secrets are not configured; publishing this release unsigned. Configure WINDOWS_SIGNING_CERTIFICATE_PFX and WINDOWS_SIGNING_CERTIFICATE_PASSWORD to enable signing."
+            exit 0
           }
 
           $certificatePath = Join-Path $env:RUNNER_TEMP "desktype-signing.pfx"
