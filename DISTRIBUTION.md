@@ -24,7 +24,7 @@ Get-FileHash dist/Desktype.exe, dist/Desktype-Setup.exe -Algorithm SHA256
 
 ## In-app updates
 
-Desktype checks the latest published, non-prerelease GitHub Release at startup and offers to update when a newer version is available. Users can also select **Check updates** in the app. The updater downloads `Desktype.exe`, verifies its SHA-256 against `SHA256SUMS.txt`, then launches a small PowerShell helper that waits for Desktype to exit, replaces the running executable, and restarts it. This supports both the portable executable and the per-user installed executable without requiring administrator rights. The app does not install an update without the user's confirmation. The input box is limited to 50,000 characters. CRLF and lone-CR line endings are normalized to LF before typing, and status progress updates are throttled for large inputs.
+Desktype checks the latest published, non-prerelease GitHub Release at startup and offers to update when a newer version is available. Users can also select **Check updates** in the app. The updater downloads `Desktype.exe`, verifies its SHA-256 against `SHA256SUMS.txt`, then launches a small PowerShell helper that waits for Desktype to exit, creates and verifies a unique rollback backup, replaces the running executable, verifies the installed file, and restarts it. If installation fails, the helper restores and verifies the backup when possible. This supports both the portable executable and the per-user installed executable without requiring administrator rights. The app does not install an update without the user's confirmation. The input box is limited to 50,000 characters. CRLF and lone-CR line endings are normalized to LF before typing, and status progress updates are throttled for large inputs.
 
 Update checks require an internet connection to the public GitHub Releases API. If GitHub is unavailable, the current app remains usable.
 
@@ -40,9 +40,14 @@ A matching hash helps detect accidental or malicious changes in transit; it does
 
 ## Signing and Windows warnings
 
-The workflow currently builds **unsigned** binaries. Windows SmartScreen may warn users about downloads from an unfamiliar publisher, and some managed devices may block unsigned software. Do not describe the downloads as signed or Microsoft-verified.
+Tagged releases are required to be Authenticode-signed before checksums are generated and the release can be published. Configure these repository Actions secrets before creating the next version tag:
 
-For broader public distribution, consider a trusted code-signing service and sign the application executable and installer in a protected release workflow. Keep signing credentials in protected GitHub Actions secrets or an external signing service; never commit certificates, private keys, or tokens. Signing alone does not guarantee that SmartScreen warnings disappear immediately.
+- **`WINDOWS_SIGNING_CERTIFICATE_PFX`** — the base64-encoded contents of a valid code-signing PFX certificate.
+- **`WINDOWS_SIGNING_CERTIFICATE_PASSWORD`** — the PFX password.
+
+The workflow signs both `Desktype.exe` and `Desktype-Setup.exe` with SHA-256, uses a trusted RFC 3161 timestamp service, verifies both signatures, then generates the published SHA-256 checksums. A tagged release intentionally fails if the secrets are absent or signing/verification fails. Branch builds and pull-request builds do not need signing secrets.
+
+Obtain the certificate from a trusted code-signing provider. Never commit a certificate, private key, password, or token to the repository. Existing releases remain as originally published and may be unsigned. Authenticode signing helps establish publisher identity and file integrity, but does not guarantee that SmartScreen warnings disappear immediately.
 
 ## Compliance and maintenance checklist
 
