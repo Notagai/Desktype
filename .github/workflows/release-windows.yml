@@ -79,87 +79,22 @@ jobs:
           $certificatePath = Join-Path $env:RUNNER_TEMP "desktype-signing.pfx"
           try {
             [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_PFX))
-            $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
-              Where-Object { $_.FullName -match '\\x64\\signtool\.exe
+            $signTool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
+            Where-Object { $_.FullName -like '*x64*signtool.exe' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (!$signTool) { throw "Windows SDK signtool.exe was not found." }
+
           foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe")) {
-            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            $name = Split-Path $file -Leaf
-            $lines += "$hash  $name"
+            & $signTool.FullName sign /fd SHA256 /tr "https://timestamp.digicert.com" /td SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD $file
+            if ($LASTEXITCODE -ne 0) { throw "Signing failed for $file" }
+            & $signTool.FullName verify /pa /v $file
+            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $file" }
           }
-          $lines | Set-Content dist/SHA256SUMS.txt -Encoding ascii
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
-        with:
-          name: Desktype-Windows-x64
-          path: |
-            dist/Desktype.exe
-            dist/Desktype-Setup.exe
-            dist/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  publish-release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-windows
-    runs-on: windows-latest
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - name: Check out full history for release ancestry validation
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify release tag points to a commit on main
-        shell: pwsh
-        run: |
-          git fetch origin main
-          git merge-base --is-ancestor "$env:GITHUB_SHA" "origin/main"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Refusing to publish: release tag must point to a commit contained in main."
-          }
-
-      - name: Download built release files
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234b4f18a22b3d1e57 # v4.1.8
-        with:
-          name: Desktype-Windows-x64
-          path: dist
-          merge-multiple: true
-
-      - name: Verify release files exist
-        shell: pwsh
-        run: |
-          foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe", "dist/SHA256SUMS.txt")) {
-            if (!(Test-Path $file)) { throw "Expected release file missing: $file" }
-          }
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
-        with:
-          name: Desktype release
-          generate_release_notes: true
-          files: |
-            dist/Desktype.exe
-            dist/Desktype-Setup.exe
-            dist/SHA256SUMS.txt
- } |
-              Sort-Object FullName -Descending |
-              Select-Object -First 1
-            if (!$signTool) { throw "Windows SDK signtool.exe was not found." }
-
-            foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe")) {
-              & $signTool.FullName sign /fd SHA256 /tr "https://timestamp.digicert.com" /td SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD $file
-              if ($LASTEXITCODE -ne 0) { throw "Signing failed for $file" }
-              & $signTool.FullName verify /pa /v $file
-              if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $file" }
-            }
-          }
-          finally {
-            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
-          }
+        }
+        finally {
+          Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+        }
 
       - name: Generate SHA-256 checksums
         shell: pwsh
