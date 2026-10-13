@@ -143,7 +143,7 @@ jobs:
           }
 
       - name: Download built release files
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234b4f18a22b3d1e57 # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: Desktype-Windows-x64
           path: dist
