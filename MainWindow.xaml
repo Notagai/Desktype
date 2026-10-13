@@ -54,7 +54,7 @@
                 <RadioButton x:Name="NoTyposRadio" GroupName="TypoMode"
                              Content="No typos" Checked="TypoMode_Changed"/>
                 <RadioButton x:Name="CorrectedTyposRadio" GroupName="TypoMode"
-                             Content="Typos, corrected" IsChecked="True"
+                             Content="Typos, corrected"
                              Checked="TypoMode_Changed"/>
                 <RadioButton x:Name="LeftTyposRadio" GroupName="TypoMode"
                              Content="Typos, left" Checked="TypoMode_Changed"/>
