@@ -66,6 +66,9 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
     public MainWindow()
     {
         // TextChanged events can fire during InitializeComponent, before all
@@ -95,9 +98,13 @@ public partial class MainWindow : Window
                 StatusText.Text = $"Couldn't read saved settings: {ex.Message}";
             }
 
-            InputText.Text = settings.Text ?? "";
-            WpmInput.Text = settings.Wpm ?? "60";
-            TyposPer100Input.Text = settings.TyposPer100Words ?? "3";
+            var normalizedText = settings.Text ?? "";
+            if (normalizedText.Length > MaximumTextLength)
+                normalizedText = normalizedText[..MaximumTextLength];
+
+            InputText.Text = normalizedText;
+            WpmInput.Text = NormalizeIntegerSetting(settings.Wpm, 1, 1000, "60");
+            TyposPer100Input.Text = NormalizeIntegerSetting(settings.TyposPer100Words, 0, 100, "3");
             _hotkeyVirtualKey = IsFunctionKeyVirtualCode(settings.HotkeyVirtualKey)
                 ? settings.HotkeyVirtualKey
                 : DefaultHotkey;
@@ -119,6 +126,13 @@ public partial class MainWindow : Window
         {
             _loadingSettings = false;
         }
+    }
+
+    private static string NormalizeIntegerSetting(string? value, int minimum, int maximum, string fallback)
+    {
+        return int.TryParse(value, out var parsed) && parsed >= minimum && parsed <= maximum
+            ? parsed.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : fallback;
     }
 
     private static bool IsFunctionKeyVirtualCode(uint key) => key >= 0x70 && key <= 0x87;
@@ -448,19 +462,33 @@ public partial class MainWindow : Window
         // Editing the text starts a fresh session. Nothing here is written to disk.
         if (!string.Equals(_typingSessionText, text, StringComparison.Ordinal))
         {
+            // Never start typing into Desktype itself or without a valid destination.
+            var foregroundWindow = GetForegroundWindow();
+            if (foregroundWindow == IntPtr.Zero ||
+                (_source is not null && foregroundWindow == _source.Handle) ||
+                !IsWindow(foregroundWindow))
+            {
+                StatusText.Text = "Focus the destination text field, then press the hotkey";
+                return;
+            }
+
             _typingSessionText = text;
             _typingPosition = 0;
             _typingSessionTypoMode = GetTypoMode();
             _typingSessionTypoPositions = ChooseTypoPositions(
                 text, typosPer100, _typingSessionTypoMode != TypoMode.None);
             // Capture the destination only for a new session, not when resuming.
-            _typingTargetWindow = GetForegroundWindow();
+            _typingTargetWindow = foregroundWindow;
         }
-        else if (_typingTargetWindow != IntPtr.Zero)
+        else
         {
-            // F11 can stop a session while Desktype has focus (for example, if
-            // the user stopped while paused). Restore the original destination
-            // before continuing so resumed keystrokes don't go into this window.
+            // Resume only into the original destination. Never guess a new target
+            // when the original window has closed or is no longer a valid HWND.
+            if (_typingTargetWindow == IntPtr.Zero || !IsWindow(_typingTargetWindow))
+            {
+                StatusText.Text = "Original target window is unavailable; edit the text to start a new session";
+                return;
+            }
             SetForegroundWindow(_typingTargetWindow);
         }
 
@@ -486,12 +514,21 @@ public partial class MainWindow : Window
         CorrectedTyposRadio.IsEnabled = false;
         LeftTyposRadio.IsEnabled = false;
 
+        var focusLost = false;
         try
         {
-            StatusText.Text = $"Typing · {wpm} WPM";
+            var initialPercent = (int)Math.Round(_typingPosition * 100.0 / text.Length);
+            StatusText.Text = $"Typing · {wpm} WPM · {initialPercent}%";
             while (_typingPosition < text.Length)
             {
                 token.ThrowIfCancellationRequested();
+                if (_typingTargetWindow == IntPtr.Zero ||
+                    !IsWindow(_typingTargetWindow) ||
+                    GetForegroundWindow() != _typingTargetWindow)
+                {
+                    focusLost = true;
+                    throw new OperationCanceledException();
+                }
                 if (_pauseRequested || _isPaused)
                 {
                     _pauseRequested = false;
@@ -539,7 +576,10 @@ public partial class MainWindow : Window
                 _typingPosition += characterLength;
                 // Avoid forcing a WPF status/layout update for every character in large inputs.
                 if (_typingPosition % 10 == 0 || _typingPosition >= text.Length)
-                    StatusText.Text = $"Typing · {wpm} WPM · {_typingPosition}/{text.Length}";
+                {
+                    var percent = (int)Math.Round(_typingPosition * 100.0 / text.Length);
+                    StatusText.Text = $"Typing · {wpm} WPM · {percent}% ({_typingPosition}/{text.Length})";
+                }
                 charactersInBurst++;
                 var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
                 var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.68 * speedVariation));
@@ -571,7 +611,9 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Stopped · press F11 to resume";
+            StatusText.Text = focusLost
+                ? "Stopped · target focus changed; focus the original field and press F11 to resume"
+                : "Stopped · press F11 to resume";
         }
         catch (Exception)
         {
