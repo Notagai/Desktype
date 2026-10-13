@@ -9,15 +9,15 @@ Open the [latest GitHub Release](https://github.com/Notagai/Desktype/releases/la
 - **Desktype.exe** — portable, standalone Windows x64 download. No separate .NET installation is needed.
 - **Desktype-Setup.exe** — installer with a Start Menu shortcut, optional desktop shortcut, and a Windows uninstaller.
 
-The first public builds are unsigned, so Windows SmartScreen may show a warning. Download only from this repository's Releases page. The release includes **SHA256SUMS.txt** to help verify download integrity. See [distribution notes](DISTRIBUTION.md) for details and limitations.
+Existing releases may be unsigned, so Windows SmartScreen may show a warning. New version-tag releases are signed by the release workflow when the repository's signing secrets are configured; tagged releases are blocked until signing is configured. Download only from this repository's Releases page. The release includes **SHA256SUMS.txt** to help verify download integrity. See [distribution notes](DISTRIBUTION.md) for setup details and limitations.
 
 ## Current features
 
 - WPF desktop interface
 - Enter or edit the text to type
 - Sends Unicode keyboard input to the focused field using Windows SendInput
-- Pause/stop and resume typing
-- In-memory typing progress and Reset Progress control
+- Pause/stop and resume typing, with destination-focus protection
+- In-memory typing progress, percentage reporting, and Reset Progress control
 - Configurable typing settings and typo behavior as implemented in the app
 - Checks GitHub Releases for newer versions at startup and lets you install a verified update
 
