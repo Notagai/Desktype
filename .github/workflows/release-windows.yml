@@ -79,22 +79,22 @@ jobs:
           $certificatePath = Join-Path $env:RUNNER_TEMP "desktype-signing.pfx"
           try {
             [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_PFX))
-            $signTool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
-            Where-Object { $_.FullName -like '*x64*signtool.exe' } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (!$signTool) { throw "Windows SDK signtool.exe was not found." }
+              $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
+              Where-Object { $_.FullName -like '*x64*signtool.exe' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (!$signTool) { throw "Windows SDK signtool.exe was not found." }
 
-          foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe")) {
-            & $signTool.FullName sign /fd SHA256 /tr "https://timestamp.digicert.com" /td SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD $file
-            if ($LASTEXITCODE -ne 0) { throw "Signing failed for $file" }
-            & $signTool.FullName verify /pa /v $file
-            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $file" }
+            foreach ($file in @("dist/Desktype.exe", "dist/Desktype-Setup.exe")) {
+              & $signTool.FullName sign /fd SHA256 /tr "https://timestamp.digicert.com" /td SHA256 /f $certificatePath /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD $file
+              if ($LASTEXITCODE -ne 0) { throw "Signing failed for $file" }
+              & $signTool.FullName verify /pa /v $file
+              if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $file" }
+            }
           }
-        }
-        finally {
-          Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
-        }
+          finally {
+            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Generate SHA-256 checksums
         shell: pwsh
