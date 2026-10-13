@@ -598,7 +598,11 @@ public partial class MainWindow : Window
         var expectedCount = typosPer100 * wordCount / 100.0;
         var typoCount = (int)Math.Floor(expectedCount);
         if (Random.Shared.NextDouble() < expectedCount - typoCount) typoCount++;
-        var candidates = Enumerable.Range(0, text.Length).Where(i => char.IsLetter(text[i])).ToList();
+        // The typo generator only supports the three ASCII QWERTY rows.
+        // Excluding other scripts avoids selecting "typos" that reproduce the same character.
+        var candidates = Enumerable.Range(0, text.Length)
+            .Where(i => IsTypoEligible(text[i]))
+            .ToList();
         typoCount = Math.Min(typoCount, candidates.Count);
 
         for (var i = 0; i < typoCount; i++)
@@ -609,6 +613,12 @@ public partial class MainWindow : Window
         }
 
         return positions;
+    }
+
+    private static bool IsTypoEligible(char character)
+    {
+        var lower = char.ToLowerInvariant(character);
+        return lower is >= 'a' and <= 'z';
     }
 
     private static char GetTypoCharacter(char original)
