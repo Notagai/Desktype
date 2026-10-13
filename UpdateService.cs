@@ -13,6 +13,7 @@ internal sealed record AvailableUpdate(string Version, string Sha256, string Exe
 internal static class UpdateService
 {
     private const string RepositoryApi = "https://api.github.com/repos/Notagai/Desktype";
+    private const long MaximumExecutableBytes = 100L * 1024 * 1024;
     private static readonly HttpClient Http = CreateHttpClient();
 
     public static string CurrentVersion
@@ -42,7 +43,10 @@ internal static class UpdateService
         if (root.TryGetProperty("prerelease", out var prerelease) && prerelease.GetBoolean())
             return null;
 
-        var versionText = tag.TrimStart('v', 'V');
+        if (!Regex.IsMatch(tag, @"^v\d+\.\d+\.\d+$"))
+            throw new InvalidDataException($"The latest release has an invalid version tag: {tag}");
+
+        var versionText = tag[1..];
         if (!Version.TryParse(versionText, out var latestVersion))
             throw new InvalidDataException($"The latest release has an invalid version tag: {tag}");
 
@@ -61,6 +65,16 @@ internal static class UpdateService
 
         if (string.IsNullOrWhiteSpace(executableUrl) || string.IsNullOrWhiteSpace(checksumsUrl))
             throw new InvalidDataException("The latest release is missing Desktype.exe or SHA256SUMS.txt.");
+
+        if (!Uri.TryCreate(executableUrl, UriKind.Absolute, out var executableUri)
+            || executableUri.Scheme != Uri.UriSchemeHttps
+            || !string.Equals(executableUri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The release executable URL is not a trusted GitHub HTTPS URL.");
+
+        if (!Uri.TryCreate(checksumsUrl, UriKind.Absolute, out var checksumUri)
+            || checksumUri.Scheme != Uri.UriSchemeHttps
+            || !string.Equals(checksumUri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The release checksum URL is not a trusted GitHub HTTPS URL.");
 
         using var checksumResponse = await Http.GetAsync(checksumsUrl);
         checksumResponse.EnsureSuccessStatusCode();
@@ -85,8 +99,26 @@ internal static class UpdateService
             using (var response = await Http.GetAsync(update.ExecutableUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 response.EnsureSuccessStatusCode();
+                if (response.Content.Headers.ContentLength is long contentLength
+                    && (contentLength <= 0 || contentLength > MaximumExecutableBytes))
+                    throw new InvalidDataException("The update executable has an invalid or excessive download size.");
+
                 await using var output = new FileStream(downloadedExe, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                await response.Content.CopyToAsync(output);
+                await using var input = await response.Content.ReadAsStreamAsync();
+                var buffer = new byte[81920];
+                long totalBytes = 0;
+                while (true)
+                {
+                    var read = await input.ReadAsync(buffer);
+                    if (read == 0) break;
+                    totalBytes += read;
+                    if (totalBytes > MaximumExecutableBytes)
+                        throw new InvalidDataException("The update executable exceeds the 100 MB download limit.");
+                    await output.WriteAsync(buffer.AsMemory(0, read));
+                }
+
+                if (totalBytes == 0)
+                    throw new InvalidDataException("The update executable download was empty.");
             }
 
             await using (var input = File.OpenRead(downloadedExe))
