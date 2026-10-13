@@ -9,7 +9,7 @@ Open the [latest GitHub Release](https://github.com/Notagai/Desktype/releases/la
 - **Desktype.exe** — portable, standalone Windows x64 download. No separate .NET installation is needed.
 - **Desktype-Setup.exe** — installer with a Start Menu shortcut, optional desktop shortcut, and a Windows uninstaller.
 
-Existing releases may be unsigned, so Windows SmartScreen may show a warning. New version-tag releases are signed by the release workflow when the repository's signing secrets are configured; tagged releases are blocked until signing is configured. Download only from this repository's Releases page. The release includes **SHA256SUMS.txt** to help verify download integrity. See [distribution notes](DISTRIBUTION.md) for setup details and limitations.
+Existing releases may be unsigned, so Windows SmartScreen may show a warning. New version-tag releases are signed by the release workflow when the repository's signing secrets are configured; without those secrets, releases are published unsigned. Download only from this repository's Releases page. The release includes **SHA256SUMS.txt** to help verify download integrity. See [distribution notes](DISTRIBUTION.md) for setup details and limitations.
 
 ## Current features
 
