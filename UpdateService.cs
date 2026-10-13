@@ -138,7 +138,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ExpectedSha256
 )
 $ErrorActionPreference = 'Stop'
-$backup = ""$Destination.update-backup""
+$backup = ""$Destination.update-backup-$([guid]::NewGuid().ToString('N'))""
 $log = Join-Path $env:TEMP 'Desktype-update.log'
 function Write-UpdateLog([string]$Message) {
     Add-Content -LiteralPath $log -Value ""$(Get-Date -Format o) $Message""
@@ -151,6 +151,12 @@ try {
     Start-Sleep -Milliseconds 400
     if (Test-Path -LiteralPath $Destination) {
         Copy-Item -LiteralPath $Destination -Destination $backup -Force
+        $originalHash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash
+        $backupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash
+        if ($originalHash -ne $backupHash) {
+            throw 'Could not verify the rollback backup.'
+        }
+        Write-UpdateLog 'Verified rollback backup created.'
     }
     Write-UpdateLog 'Installing verified executable.'
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
@@ -169,7 +175,12 @@ try {
     if (Test-Path -LiteralPath $backup) {
         try {
             Copy-Item -LiteralPath $backup -Destination $Destination -Force
-            Write-UpdateLog 'Restored previous executable from backup.'
+            $restoredHash = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash
+            $expectedBackupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash
+            if ($restoredHash -ne $expectedBackupHash) {
+                throw 'Restored executable checksum did not match the backup.'
+            }
+            Write-UpdateLog 'Restored and verified previous executable from backup.'
         } catch {
             try { Write-UpdateLog ""RESTORE FAILED: $($_.Exception.ToString())"" } catch {}
         }
