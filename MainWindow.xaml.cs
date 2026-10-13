@@ -349,7 +349,7 @@ public partial class MainWindow : Window
             if (showUpToDate || !startupCheck)
                 MessageBox.Show(this, $"Couldn't check for or install an update.\n\n{ex.Message}",
                     "Update failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-            StatusText.Text = "Update check failed";
+            if (!startupCheck) StatusText.Text = "Update check failed";
         }
         finally
         {
