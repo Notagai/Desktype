@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private const int WmHotkey = 0x0312;
     private const uint NoModifiers = 0;
     private const uint DefaultHotkey = 0x7A; // F11
+    private const int MaximumTextLength = 50_000;
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Desktype");
     private static readonly string SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
@@ -410,10 +411,17 @@ public partial class MainWindow : Window
     {
         if (_isTyping) return;
 
-        var text = InputText.Text;
+        // Normalize CRLF and lone CR to LF so every platform's newline becomes one Enter.
+        var text = NormalizeLineEndings(InputText.Text);
         if (string.IsNullOrEmpty(text))
         {
             StatusText.Text = "Enter text first";
+            return;
+        }
+
+        if (text.Length > MaximumTextLength)
+        {
+            StatusText.Text = $"Text is too long · maximum {MaximumTextLength:N0} characters";
             return;
         }
 
@@ -529,7 +537,9 @@ public partial class MainWindow : Window
 
                 // Advance by UTF-16 code units only after the full Unicode scalar was sent.
                 _typingPosition += characterLength;
-                StatusText.Text = $"Typing · {wpm} WPM · {_typingPosition}/{text.Length}";
+                // Avoid forcing a WPF status/layout update for every character in large inputs.
+                if (_typingPosition % 10 == 0 || _typingPosition >= text.Length)
+                    StatusText.Text = $"Typing · {wpm} WPM · {_typingPosition}/{text.Length}";
                 charactersInBurst++;
                 var speedVariation = 0.68 + (Random.Shared.NextDouble() * 0.62);
                 var characterDelay = Math.Max(1, (int)Math.Round(targetCharacterInterval * 0.68 * speedVariation));
@@ -586,6 +596,9 @@ public partial class MainWindow : Window
             LeftTyposRadio.IsEnabled = true;
         }
     }
+
+    private static string NormalizeLineEndings(string text) =>
+        text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
     private static HashSet<int> ChooseTypoPositions(string text, int typosPer100, bool enabled)
     {
