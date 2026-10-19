@@ -40,6 +40,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBox x:Name="InputText" Grid.Row="0"
                  AcceptsReturn="True" AcceptsTab="True" MaxLength="50000"
@@ -48,7 +49,22 @@
                  TextChanged="InputText_TextChanged"
                  AutomationProperties.Name="Text to type"
                  ToolTip="Enter up to 50,000 characters. Line endings are normalized before typing."/>
-        <GroupBox Grid.Row="1" Header="Typos" Margin="0,10,0,0"
+        <Grid Grid.Row="1" Margin="0,6,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="History" VerticalAlignment="Center"
+                       Margin="0,0,8,0" Foreground="#6D6580" FontSize="12"/>
+            <ComboBox x:Name="HistoryComboBox" Grid.Column="1" Height="30"
+                      VerticalContentAlignment="Center" SelectionChanged="HistoryComboBox_SelectionChanged"
+                      ToolTip="Select previously typed text to reuse it."/>
+            <Button Grid.Column="2" Content="Clear" Margin="6,0,0,0"
+                    Padding="8,4" FontSize="11" Click="ClearHistoryButton_Click"
+                    ToolTip="Delete saved typing history."/>
+        </Grid>
+        <GroupBox Grid.Row="2" Header="Typos" Margin="0,8,0,0"
                   Foreground="#6D6580" BorderBrush="#DDD6EC" Padding="8">
             <StackPanel>
                 <RadioButton x:Name="NoTyposRadio" GroupName="TypoMode"
@@ -69,7 +85,7 @@
                 </DockPanel>
             </StackPanel>
         </GroupBox>
-        <Grid Grid.Row="2" Margin="0,9,0,0">
+        <Grid Grid.Row="3" Margin="0,9,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="64"/>
@@ -90,7 +106,7 @@
                     Content="Hotkey: F11" FontSize="12"
                     Click="HotkeyButton_Click"/>
         </Grid>
-        <Grid Grid.Row="3" Margin="0,7,0,0">
+        <Grid Grid.Row="4" Margin="0,7,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>

@@ -19,7 +19,9 @@ Existing releases may be unsigned, so Windows SmartScreen may show a warning. Ne
 - Pause/stop and resume typing, with destination-focus protection
 - In-memory typing progress, percentage reporting, and Reset Progress control
 - Configurable typing settings and typo behavior as implemented in the app
-- Checks GitHub Releases for newer versions at startup and lets you install a verified update
+- Local typing history with up to 20 recent entries, reusable from the history dropdown and clearable at any time
+- Defers the startup update check until the first UI frame has rendered to keep launch responsive
+- Checks GitHub Releases for newer versions and lets you install a verified update
 
 Keep the test in a harmless text field first. The app types into whichever field has focus when the countdown ends; it does not verify the destination.
 
@@ -40,7 +42,7 @@ Keep the test in a harmless text field first. The app types into whichever field
 
 ## Build and release
 
-The GitHub Actions workflow builds a self-contained Windows x64 EXE and Inno Setup installer. Push a tag such as v1.0.0 to create a GitHub Release with both downloads and SHA-256 checksums. See [DISTRIBUTION.md](DISTRIBUTION.md) for build details, installer behavior, signing considerations, and the pre-release checklist.
+The GitHub Actions workflow builds a self-contained Windows x64 EXE and Inno Setup installer. Push a tag such as v1.3.0 to create a GitHub Release with both downloads and SHA-256 checksums. See [DISTRIBUTION.md](DISTRIBUTION.md) for build details, installer behavior, signing considerations, and the pre-release checklist.
 
 ## Notes
 

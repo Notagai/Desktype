@@ -35,6 +35,9 @@ public partial class MainWindow : Window
     private bool _pauseRequested;
     private bool _isPaused;
     private bool _loadingSettings;
+    private readonly List<string> _history = new();
+    private const int MaximumHistoryEntries = 20;
+    private bool _selectingHistory;
 
     private enum TypoMode
     {
@@ -52,6 +55,7 @@ public partial class MainWindow : Window
         public string TyposPer100Words { get; set; } = "3";
         public string TypoMode { get; set; } = nameof(Desktype.MainWindow.TypoMode.Corrected);
         public uint HotkeyVirtualKey { get; set; } = DefaultHotkey;
+        public List<string> History { get; set; } = new();
     }
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -103,6 +107,12 @@ public partial class MainWindow : Window
                 normalizedText = normalizedText[..MaximumTextLength];
 
             InputText.Text = normalizedText;
+            _history.Clear();
+            _history.AddRange((settings.History ?? new List<string>())
+                .Where(item => !string.IsNullOrWhiteSpace(item) && item.Length <= MaximumTextLength)
+                .Distinct(StringComparer.Ordinal)
+                .Take(MaximumHistoryEntries));
+            RefreshHistoryList();
             WpmInput.Text = NormalizeIntegerSetting(settings.Wpm, 1, 1000, "60");
             TyposPer100Input.Text = NormalizeIntegerSetting(settings.TyposPer100Words, 0, 100, "3");
             _hotkeyVirtualKey = IsFunctionKeyVirtualCode(settings.HotkeyVirtualKey)
@@ -147,7 +157,8 @@ public partial class MainWindow : Window
             Wpm = WpmInput.Text,
             TyposPer100Words = TyposPer100Input.Text,
             TypoMode = GetTypoMode().ToString(),
-            HotkeyVirtualKey = _hotkeyVirtualKey
+            HotkeyVirtualKey = _hotkeyVirtualKey,
+            History = _history.ToList()
         };
 
         try
@@ -320,10 +331,13 @@ public partial class MainWindow : Window
 
     private bool _checkingForUpdates;
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Check quietly at startup; only interrupt the user when an update exists.
-        await CheckForUpdatesAsync(showUpToDate: false, startupCheck: true);
+        // Let the first frame render and the input field become responsive before
+        // starting the optional network update check.
+        Dispatcher.BeginInvoke(new Action(async () =>
+            await CheckForUpdatesAsync(showUpToDate: false, startupCheck: true)),
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)
@@ -381,6 +395,50 @@ public partial class MainWindow : Window
             _checkingForUpdates = false;
             if (IsLoaded) UpdateButton.IsEnabled = true;
         }
+    }
+
+    private void RefreshHistoryList()
+    {
+        if (HistoryComboBox is null) return;
+        _selectingHistory = true;
+        try
+        {
+            HistoryComboBox.ItemsSource = null;
+            HistoryComboBox.ItemsSource = _history.ToList();
+            HistoryComboBox.SelectedIndex = -1;
+        }
+        finally
+        {
+            _selectingHistory = false;
+        }
+    }
+
+    private void RecordHistory(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        _history.RemoveAll(item => string.Equals(item, text, StringComparison.Ordinal));
+        _history.Insert(0, text);
+        if (_history.Count > MaximumHistoryEntries)
+            _history.RemoveRange(MaximumHistoryEntries, _history.Count - MaximumHistoryEntries);
+        RefreshHistoryList();
+        SaveSettings();
+    }
+
+    private void HistoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_selectingHistory || HistoryComboBox.SelectedItem is not string selected) return;
+        InputText.Text = selected;
+        InputText.CaretIndex = InputText.Text.Length;
+        InputText.Focus();
+        HistoryComboBox.SelectedIndex = -1;
+    }
+
+    private void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        _history.Clear();
+        RefreshHistoryList();
+        SaveSettings();
+        StatusText.Text = "Typing history cleared";
     }
 
     private void InputText_TextChanged(object sender, TextChangedEventArgs e) => SaveSettings();
@@ -456,6 +514,7 @@ public partial class MainWindow : Window
         }
 
         SaveSettings();
+        RecordHistory(text);
 
         // Reuse the current in-memory session when the text is unchanged. This
         // lets F11 stop and restart typing without losing the current position.
