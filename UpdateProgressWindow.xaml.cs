@@ -15,7 +15,7 @@ public partial class UpdateProgressWindow : Window
         InitializeComponent();
     }
 
-    public void ReportProgress(UpdateProgressInfo progress)
+    internal void ReportProgress(UpdateProgressInfo progress)
     {
         StatusLabel.Text = progress.Status;
         DownloadProgress.IsIndeterminate = progress.IsIndeterminate || progress.TotalBytes is not > 0;
