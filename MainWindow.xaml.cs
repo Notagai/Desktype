@@ -397,11 +397,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            var updateWasInProgress = progressWindow is not null;
             if (progressWindow is { IsVisible: true })
                 progressWindow.Close();
             progressWindow = null;
             StatusText.Text = "Update failed";
-            if (showUpToDate || !startupCheck || ex is not null)
+            if (showUpToDate || !startupCheck || updateWasInProgress)
                 MessageBox.Show(this, $"Couldn't check for or install an update.\n\n{ex.Message}",
                     "Update failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
