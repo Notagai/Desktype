@@ -351,6 +351,7 @@ public partial class MainWindow : Window
 
         _checkingForUpdates = true;
         UpdateButton.IsEnabled = false;
+        UpdateProgressWindow? progressWindow = null;
         if (!startupCheck) StatusText.Text = "Checking for updates…";
 
         try
@@ -375,23 +376,40 @@ public partial class MainWindow : Window
                 return;
             }
 
-            StatusText.Text = "Downloading and verifying update…";
             var executablePath = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(executablePath))
                 throw new InvalidOperationException("Couldn't determine the running executable path.");
 
-            await UpdateService.DownloadAndStartAsync(update, executablePath, Environment.ProcessId);
+            progressWindow = new UpdateProgressWindow { Owner = this };
+            progressWindow.Show();
+            StatusText.Text = $"Updating to {update.Version}…";
+            var progress = new Progress<UpdateProgressInfo>(progress =>
+            {
+                if (progressWindow is { IsVisible: true })
+                    progressWindow.ReportProgress(progress);
+                StatusText.Text = progress.Status;
+            });
+
+            await UpdateService.DownloadAndStartAsync(update, executablePath, Environment.ProcessId, progress);
+            progressWindow.Close();
+            progressWindow = null;
             Close();
         }
         catch (Exception ex)
         {
-            if (showUpToDate || !startupCheck)
+            var updateWasInProgress = progressWindow is not null;
+            if (progressWindow is { IsVisible: true })
+                progressWindow.Close();
+            progressWindow = null;
+            StatusText.Text = "Update failed";
+            if (showUpToDate || !startupCheck || updateWasInProgress)
                 MessageBox.Show(this, $"Couldn't check for or install an update.\n\n{ex.Message}",
                     "Update failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-            if (!startupCheck) StatusText.Text = "Update check failed";
         }
         finally
         {
+            if (progressWindow is { IsVisible: true })
+                progressWindow.Close();
             _checkingForUpdates = false;
             if (IsLoaded) UpdateButton.IsEnabled = true;
         }

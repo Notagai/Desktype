@@ -13,7 +13,8 @@ internal sealed record AvailableUpdate(string Version, string Sha256, string Exe
 internal static class UpdateService
 {
     private const string RepositoryApi = "https://api.github.com/repos/Notagai/Desktype";
-    private const long MaximumExecutableBytes = 100L * 1024 * 1024;
+    private const long MaximumExecutableBytes = 250L * 1024 * 1024;
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(3);
     private static readonly HttpClient Http = CreateHttpClient();
 
     public static string CurrentVersion
@@ -87,7 +88,7 @@ internal static class UpdateService
             executableUrl, checksumsUrl);
     }
 
-    public static async Task DownloadAndStartAsync(AvailableUpdate update, string executablePath, int processId)
+    public static async Task DownloadAndStartAsync(AvailableUpdate update, string executablePath, int processId, IProgress<UpdateProgressInfo>? progress = null)
     {
         var updateDirectory = Path.Combine(Path.GetTempPath(), "Desktype-update", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(updateDirectory);
@@ -96,40 +97,47 @@ internal static class UpdateService
 
         try
         {
-            using (var response = await Http.GetAsync(update.ExecutableUrl, HttpCompletionOption.ResponseHeadersRead))
+            using var timeout = new CancellationTokenSource(DownloadTimeout);
+            progress?.Report(new UpdateProgressInfo("Connecting to GitHub…"));
+            using (var response = await Http.GetAsync(update.ExecutableUrl,
+                HttpCompletionOption.ResponseHeadersRead, timeout.Token))
             {
                 response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength is long contentLength
-                    && (contentLength <= 0 || contentLength > MaximumExecutableBytes))
+                var contentLength = response.Content.Headers.ContentLength;
+                if (contentLength is long length && (length <= 0 || length > MaximumExecutableBytes))
                     throw new InvalidDataException("The update executable has an invalid or excessive download size.");
 
                 await using var output = new FileStream(downloadedExe, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                await using var input = await response.Content.ReadAsStreamAsync();
+                await using var input = await response.Content.ReadAsStreamAsync(timeout.Token);
                 var buffer = new byte[81920];
                 long totalBytes = 0;
+                progress?.Report(new UpdateProgressInfo("Downloading update…", 0, contentLength, contentLength is null));
                 while (true)
                 {
-                    var read = await input.ReadAsync(buffer);
+                    var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), timeout.Token);
                     if (read == 0) break;
                     totalBytes += read;
                     if (totalBytes > MaximumExecutableBytes)
-                        throw new InvalidDataException("The update executable exceeds the 100 MB download limit.");
-                    await output.WriteAsync(buffer.AsMemory(0, read));
+                        throw new InvalidDataException("The update executable exceeds the 250 MB download limit.");
+                    await output.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+                    progress?.Report(new UpdateProgressInfo("Downloading update…", totalBytes, contentLength, contentLength is null));
                 }
 
                 if (totalBytes == 0)
                     throw new InvalidDataException("The update executable download was empty.");
             }
 
+            progress?.Report(new UpdateProgressInfo("Verifying SHA-256 checksum…", 0, null, true));
             await using (var input = File.OpenRead(downloadedExe))
             {
-                var hash = Convert.ToHexString(await SHA256.HashDataAsync(input)).ToLowerInvariant();
+                var hash = Convert.ToHexString(await SHA256.HashDataAsync(input, timeout.Token)).ToLowerInvariant();
                 if (!CryptographicOperations.FixedTimeEquals(
                     System.Text.Encoding.ASCII.GetBytes(hash),
                     System.Text.Encoding.ASCII.GetBytes(update.Sha256)))
                     throw new InvalidDataException("The downloaded update failed SHA-256 verification.");
             }
 
+            progress?.Report(new UpdateProgressInfo("Preparing installer…", 0, null, true));
             const string script = @"
 param(
     [Parameter(Mandatory=$true)][int]$TargetPid,
@@ -145,7 +153,9 @@ function Write-UpdateLog([string]$Message) {
 }
 try {
     Write-UpdateLog ""Update helper started for $Destination; waiting for process $TargetPid to exit.""
+    $waitDeadline = (Get-Date).AddSeconds(120)
     while (Get-Process -Id $TargetPid -ErrorAction SilentlyContinue) {
+        if ((Get-Date) -gt $waitDeadline) { throw 'Timed out waiting for Desktype to close.' }
         Start-Sleep -Milliseconds 250
     }
     Start-Sleep -Milliseconds 400
